@@ -31,26 +31,13 @@ async function fixGotoInZip(zipfile) {
         if (!file) continue
         let contents = await file.async('string')
         if (!contents.includes('goto') && !contents.includes('::')) continue
+        // Handle "then goto label end" — preserves the closing end
         contents = contents.replace(/\bthen\s+goto\s+\w+\s+end/g, 'then end')
+        // Comment out remaining goto statements
         contents = contents.replace(/\bgoto\s+\w+/g, '-- goto (removed)')
+        // Remove ::label:: declarations entirely
         contents = contents.replace(/::\w+::/g, '')
         zipfile.file(path, contents)
-    }
-}
-
-async function fixSmodsPath(zipfile) {
-    // Lovely dumps SMODS files under SMODS/_/ but main.lua expects them at SMODS/
-    // Copy all files from SMODS/_/* to SMODS/* so the path resolution works
-    const prefix = 'SMODS/_/'
-    const paths = Object.keys(zipfile.files).filter(p => p.startsWith(prefix))
-    if (paths.length === 0) return
-    console.log(`Fixing SMODS path: copying ${paths.length} files from SMODS/_/ to SMODS/`)
-    for (const path of paths) {
-        const file = zipfile.file(path)
-        if (!file || zipfile.files[path].dir) continue
-        const contents = await file.async('uint8array')
-        const newPath = path.replace(prefix, 'SMODS/')
-        zipfile.file(newPath, contents)
     }
 }
 
@@ -134,7 +121,17 @@ async function buildFromSource(blob, mods) {
         parseLovelyDump(isNested ? dumpTree[keys[0]] : dumpTree, "")
 
         // Fix SMODS path: Lovely dumps SMODS under SMODS/_/ but code expects SMODS/
-        await fixSmodsPath(zipfile)
+        const smodsPrefix = 'SMODS/_/'
+        const smodsPaths = Object.keys(zipfile.files).filter(p => p.startsWith(smodsPrefix))
+        if (smodsPaths.length > 0) {
+            console.log(`Fixing SMODS path: copying ${smodsPaths.length} files from SMODS/_/ to SMODS/`)
+            for (const path of smodsPaths) {
+                const file = zipfile.file(path)
+                if (!file || zipfile.files[path].dir) continue
+                const contents = await file.async('uint8array')
+                zipfile.file(path.replace(smodsPrefix, 'SMODS/'), contents)
+            }
+        }
     }
 
     await fixGotoInZip(zipfile)
@@ -337,17 +334,20 @@ async function buildFromSource(blob, mods) {
             const main = zipfile.file("main.lua")
             let contents = await main.async("string")
 
-            // Inject web_patches just before love.run() — at this point all requires
-            // have run so SMODS is fully initialized
-            const loveRunAnchor = 'function love.run()'
-            if (contents.includes(loveRunAnchor)) {
-                contents = contents.replace(loveRunAnchor, 'require "web_patches"\nfunction love.run()')
-            } else {
-                contents = 'require "web_patches"\n' + contents
-            }
+            // Prepend web_patches — for vanilla builds SMODS doesn't exist yet,
+            // web_patches only uses LOVE APIs so this is safe
+            contents = 'require "web_patches"\n' + contents
 
-            contents = contents.replace("if os == 'OS X' or os == 'Windows' then", "if false then")
-            contents = contents.replace("G:start_up()", "G:start_up()\n    G.SOUND_MANAGER = { channel = { push = function() end } }")
+            // Use regex to handle trailing space variants, arrow function to avoid
+            // JavaScript $ substitution issues in replacement strings
+            contents = contents.replace(
+                /if os == 'OS X' or os == 'Windows' then\s/,
+                () => "if false then "
+            )
+            contents = contents.replace(
+                "G:start_up()",
+                () => "G:start_up()\n    G.SOUND_MANAGER = { channel = { push = function() end } }"
+            )
             zipfile.file("main.lua", contents)
         }
 
