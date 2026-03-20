@@ -139,16 +139,17 @@ async function buildFromSource(blob, mods) {
                 zipfile.file(path.replace(smodsUnderscorePrefix, 'SMODS/'), contents)
             }
         }
-        // Copy lovely/SMODS/preflight/ files to SMODS/preflight/ 
-// so require 'SMODS.preflight.logging' resolves correctly
-const lovelySmods = 'lovely/SMODS/'
-const lovelySmodsPaths = Object.keys(zipfile.files).filter(p => p.startsWith(lovelySmods))
-for (const path of lovelySmodsPaths) {
-    const file = zipfile.file(path)
-    if (!file || zipfile.files[path].dir) continue
-    const contents = await file.async('uint8array')
-    zipfile.file(path.replace(lovelySmods, 'SMODS/'), contents)
-}
+
+        // Copy lovely/SMODS/ files to SMODS/ so require 'SMODS.preflight.x' resolves
+        // e.g. lovely/SMODS/preflight/core/src/preflight/logging.lua -> SMODS/preflight/logging.lua
+        const lovelySmods = 'lovely/SMODS/'
+        const lovelySmodsPaths = Object.keys(zipfile.files).filter(p => p.startsWith(lovelySmods))
+        for (const path of lovelySmodsPaths) {
+            const file = zipfile.file(path)
+            if (!file || zipfile.files[path].dir) continue
+            const contents = await file.async('uint8array')
+            zipfile.file(path.replace(lovelySmods, 'SMODS/'), contents)
+        }
     }
 
     await fixGotoInZip(zipfile)
@@ -360,9 +361,7 @@ for (const path of lovelySmodsPaths) {
         zipfile.file(patch_file, window.patches[patch_file])
     }
 
-    // Override SMODS nativefs AFTER everything else so it always wins.
-    // The dump's SMODS/nativefs.lua uses LuaJIT ffi which doesn't exist in the web runtime.
-    // Replace it with the web-compatible pure-Lua version from patches.js.
+    // Override SMODS nativefs AFTER everything else so it always wins
     if (mods["Dump from Lovely"]) {
         zipfile.file("SMODS/nativefs.lua", window.patches["nativefs.lua"])
     }
