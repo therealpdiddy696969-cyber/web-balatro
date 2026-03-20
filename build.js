@@ -110,7 +110,7 @@ async function buildFromSource(blob, mods) {
         }
     }
 
-    let smodsPreflight = null // will hold the preflight core.lua path if found
+    let smodsPreflight = null
 
     if (mods["Dump from Lovely"]) {
         const dumpTree = mods["Dump from Lovely"]
@@ -119,8 +119,7 @@ async function buildFromSource(blob, mods) {
         const isNested = firstVal && !(firstVal instanceof File) && keys.length === 1
         parseLovelyDump(isNested ? dumpTree[keys[0]] : dumpTree, "")
 
-        // Find the SMODS preflight core.lua in the zip — it's what sets up the SMODS global
-        // Lovely dumps it under lovely/SMODS/preflight/core/src/preflight/core.lua
+        // Find the SMODS preflight core.lua
         const preflightPath = Object.keys(zipfile.files).find(p =>
             p.includes('preflight') && p.endsWith('core.lua') && !p.endsWith('.json')
         )
@@ -129,12 +128,10 @@ async function buildFromSource(blob, mods) {
             console.log("Found SMODS preflight at:", preflightPath)
         }
 
-        // Copy SMODS src files from dump (SMODS/_/src/) to SMODS/src/
-        // so SMODS.path + "src/ui.lua" resolves correctly
+        // Copy SMODS src files from SMODS/_/src/ to SMODS/src/
         const smodsUnderscorePrefix = 'SMODS/_/'
         const smodsUnderscorePaths = Object.keys(zipfile.files).filter(p => p.startsWith(smodsUnderscorePrefix))
         if (smodsUnderscorePaths.length > 0) {
-            console.log(`Copying ${smodsUnderscorePaths.length} files from SMODS/_/ to SMODS/`)
             for (const path of smodsUnderscorePaths) {
                 const file = zipfile.file(path)
                 if (!file || zipfile.files[path].dir) continue
@@ -330,24 +327,20 @@ async function buildFromSource(blob, mods) {
     console.log(mods_without_dump)
     move_dir(mods_without_dump, "Mods/")
 
-    // Find SMODS mod folder name so we know SMODS.path
+    // Find SMODS mod folder and copy src files there so SMODS.path resolves
     const smodsFolderEntry = Object.keys(zipfile.files).find(p =>
         p.startsWith('Mods/') && p.toLowerCase().includes('smods') && p.split('/').length === 3 && p.endsWith('/')
     )
     const smodsFolderName = smodsFolderEntry ? smodsFolderEntry.split('/')[1] : null
-    console.log("SMODS mod folder:", smodsFolderName)
-
-    // Also copy SMODS src files to the Mods/smods-x.x.x/ folder so SMODS.path resolves correctly
     if (smodsFolderName) {
         const smodsZipSrc = Object.keys(zipfile.files).filter(p => p.startsWith('SMODS/src/'))
         for (const path of smodsZipSrc) {
             const file = zipfile.file(path)
             if (!file || zipfile.files[path].dir) continue
             const contents = await file.async('uint8array')
-            const relPath = path.replace('SMODS/src/', '')
-            zipfile.file('Mods/' + smodsFolderName + '/src/' + relPath, contents)
+            zipfile.file('Mods/' + smodsFolderName + '/src/' + path.replace('SMODS/src/', ''), contents)
         }
-        console.log("Copied SMODS src files to Mods/" + smodsFolderName + "/src/")
+        console.log("Copied SMODS src to Mods/" + smodsFolderName + "/src/")
     }
 
     progress_bar.value = "50"
@@ -357,6 +350,31 @@ async function buildFromSource(blob, mods) {
         zipfile.file(patch_file, window.patches[patch_file])
     }
 
+    // Inject a stub ffi module — LuaJIT ffi is not available in the web runtime
+    // SMODS/nativefs.lua tries to require 'ffi' for filesystem access
+    zipfile.file("ffi.lua", `-- ffi stub for web compatibility
+-- LuaJIT's ffi library is not available in the web runtime
+-- Return a minimal stub that prevents require errors
+local ffi = {}
+ffi.os = "Windows"
+ffi.arch = "x64"
+function ffi.typeof() return {} end
+function ffi.new() return {} end
+function ffi.cast() return {} end
+function ffi.cdef() end
+function ffi.load() return {} end
+function ffi.string() return "" end
+function ffi.copy() end
+function ffi.fill() end
+function ffi.sizeof() return 0 end
+function ffi.alignof() return 0 end
+function ffi.offsetof() return 0 end
+function ffi.istype() return false end
+function ffi.errno() return 0 end
+function ffi.gc(obj) return obj end
+ffi.C = setmetatable({}, { __index = function() return function() end end })
+return ffi`)
+
     if (!zipfile.file("web_patched") || mods["Dump from Lovely"]) {
         progress_bar.value = "60"
 
@@ -364,15 +382,9 @@ async function buildFromSource(blob, mods) {
             const main = zipfile.file("main.lua")
             let contents = await main.async("string")
 
-            // Bootstrap SMODS preflight before anything else runs.
-            // The web Lovely shim doesn't run the preflight automatically,
-            // so we inject it manually at the top of main.lua.
-            // The preflight sets up the global SMODS table and SMODS.path.
+            // Bootstrap SMODS preflight before anything else
             let preflightBootstrap = ''
             if (smodsPreflight) {
-                // Convert zip path to a require-able path (strip .lua extension)
-                // e.g. "lovely/SMODS/preflight/core/src/preflight/core.lua"
-                //   -> require "lovely/SMODS/preflight/core/src/preflight/core"
                 const requirePath = smodsPreflight.replace(/\.lua$/, '')
                 preflightBootstrap = `-- Bootstrap SMODS preflight (web build)\nrequire "${requirePath}"\n`
             }
