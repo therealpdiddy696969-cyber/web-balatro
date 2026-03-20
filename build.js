@@ -115,17 +115,7 @@ async function buildFromSource(blob, mods) {
         const keys = Object.keys(dumpTree)
         const firstVal = keys.length > 0 ? dumpTree[keys[0]] : null
         const isNested = firstVal && !(firstVal instanceof File) && keys.length === 1
-
-        // DEBUG LOGGING — remove once dump structure is confirmed working
-        console.log("=== DUMP DEBUG ===")
-        console.log("Dump top-level keys:", keys)
-        console.log("isNested:", isNested)
-
         parseLovelyDump(isNested ? dumpTree[keys[0]] : dumpTree, "")
-
-        console.log("Zip has main.lua after dump:", !!zipfile.file("main.lua"))
-        console.log("Root-level zip files:", Object.keys(zipfile.files).filter(p => !p.includes('/')).slice(0, 20))
-        console.log("=== END DUMP DEBUG ===")
     }
 
     await fixGotoInZip(zipfile)
@@ -214,7 +204,7 @@ async function buildFromSource(blob, mods) {
                 if (contents === null) continue
 
                 let locs = []
-            
+
                 let data;
                 while ((data = pattern.exec(contents)) !== null) {
                     locs.push({
@@ -224,7 +214,7 @@ async function buildFromSource(blob, mods) {
                         match: data[0]
                     })
                 }
-                
+
                 let delta = 0;
                 let i = 0
                 for (const match of locs) {
@@ -316,7 +306,7 @@ async function buildFromSource(blob, mods) {
 
     progress_bar.value = "50"
     status_text.innerText = "Applying Patches"
-    
+
     for (const patch_file of Object.keys(window.patches)) {
         zipfile.file(patch_file, window.patches[patch_file])
     }
@@ -328,11 +318,13 @@ async function buildFromSource(blob, mods) {
             const main = zipfile.file("main.lua")
             let contents = await main.async("string")
 
-            // Inject web_patches AFTER SMODS is initialized
-            const smodsAnchor = 'assert(SMODS.path,'
-            if (contents.includes(smodsAnchor)) {
-                contents = contents.replace(smodsAnchor, 'require "web_patches"\n' + smodsAnchor)
+            // Inject web_patches just before love.run() — at this point all requires
+            // have run so SMODS is fully initialized, but we're not yet in the game loop.
+            const loveRunAnchor = 'function love.run()'
+            if (contents.includes(loveRunAnchor)) {
+                contents = contents.replace(loveRunAnchor, 'require "web_patches"\nfunction love.run()')
             } else {
+                // Fallback for vanilla builds without SMODS
                 contents = 'require "web_patches"\n' + contents
             }
 
