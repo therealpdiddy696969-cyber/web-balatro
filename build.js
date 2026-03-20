@@ -18,6 +18,40 @@ function string_searchAll(string, regex) {
     return positions
 }
 
+function fixTomlQuotes(text) {
+    // Fix '''' sequences in TOML multiline strings.
+    // The Lovely injector allows strings ending with ' before the closing ''',
+    // but the web TOML parser chokes on it. We add a space before the closing
+    // ''' when the content ends with one or more single quotes.
+    let result = '';
+    let remaining = text;
+    while (remaining.length > 0) {
+        const open = remaining.indexOf("'''");
+        if (open === -1) {
+            result += remaining;
+            break;
+        }
+        // Add everything up to and including the opening '''
+        result += remaining.slice(0, open + 3);
+        remaining = remaining.slice(open + 3);
+        // Find the closing '''
+        const close = remaining.indexOf("'''");
+        if (close === -1) {
+            result += remaining;
+            break;
+        }
+        let inner = remaining.slice(0, close);
+        // If inner ends with one or more single quotes, add a space so they
+        // don't merge with the closing ''' and confuse the parser
+        if (inner.endsWith("'")) {
+            inner = inner + ' ';
+        }
+        result += inner + "'''";
+        remaining = remaining.slice(close + 3);
+    }
+    return result;
+}
+
 /**
  * 
  * @param {Blob | File} blob .zip or .exe of balatro
@@ -137,7 +171,7 @@ async function buildFromSource(blob, mods) {
         for (const file of tomls) {
             try {
                 patch_list.push({
-                    src: toml.parse(await file.toml.text()),
+                    src: toml.parse(fixTomlQuotes(await file.toml.text())),
                     name: name,
                     dont_patch: mod["dont_patch.txt"] ? true : false,
                 })
@@ -313,7 +347,7 @@ async function buildFromSource(blob, mods) {
         }
     }
 
-    mods_without_dump = {}
+    const mods_without_dump = {}
 
     for (const [mod_name, mod_data] of Object.entries(mods)) {
         if (mod_name != "Dump from Lovely") {
