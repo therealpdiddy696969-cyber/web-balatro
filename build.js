@@ -33,9 +33,12 @@ async function fixGotoInZip(zipfile) {
         if (!file) continue
         let contents = await file.async('string')
         if (!contents.includes('goto') && !contents.includes('::')) continue
-        // Comment out goto statements
+        // Replace "then goto label end" — inline goto at end of if statement
+        // Must be done before the general goto replacement
+        contents = contents.replace(/\bthen\s+goto\s+\w+\s+end/g, 'then end')
+        // Replace standalone goto statements
         contents = contents.replace(/\bgoto\s+\w+/g, '-- goto (removed)')
-        // Remove ::label:: declarations entirely (leaving them even commented causes parse errors)
+        // Remove ::label:: declarations entirely
         contents = contents.replace(/::\w+::/g, '')
         zipfile.file(path, contents)
     }
