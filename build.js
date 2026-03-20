@@ -119,6 +119,7 @@ async function buildFromSource(blob, mods) {
         const firstVal = keys.length > 0 ? dumpTree[keys[0]] : null
         const isNested = firstVal && !(firstVal instanceof File) && keys.length === 1
         parseLovelyDump(isNested ? dumpTree[keys[0]] : dumpTree, "")
+console.log("lovely/ files in zip:", Object.keys(zipfile.files).filter(p => p.startsWith('lovely/')))
 
         // Fix SMODS path: Lovely dumps SMODS under SMODS/_/ but code expects SMODS/
         const smodsPrefix = 'SMODS/_/'
