@@ -18,6 +18,29 @@ function string_searchAll(string, regex) {
     return positions
 }
 
+function fixTomlQuotes(text) {
+    // Fix '''' sequences — a run of 4+ single quotes is always invalid TOML
+    // and always means a multiline string ending with a quote before the closing '''
+    return text.replace(/'{4,}/g, (match) => {
+        return match.slice(0, match.length - 3) + " '''";
+    });
+}
+
+async function fixGotoInZip(zipfile) {
+    for (const path of Object.keys(zipfile.files)) {
+        if (!path.endsWith('.lua')) continue
+        const file = zipfile.file(path)
+        if (!file) continue
+        let contents = await file.async('string')
+        if (!contents.includes('goto') && !contents.includes('::')) continue
+        // Comment out goto statements
+        contents = contents.replace(/\bgoto\s+\w+/g, '-- goto (removed)')
+        // Remove ::label:: declarations entirely (leaving them even commented causes parse errors)
+        contents = contents.replace(/::\w+::/g, '')
+        zipfile.file(path, contents)
+    }
+}
+
 /**
  * 
  * @param {Blob | File} blob .zip or .exe of balatro
@@ -49,14 +72,19 @@ async function buildFromSource(blob, mods) {
     /**
      * 
      * @param {string} path A file path
-     * @returns {Promise<string>} Contents of file
+     * @returns {Promise<string|null>} Contents of file, or null if not found
      */
     function get_file(path) {
         let current = zipfile
         for (const chunk of path.split("/").slice(0, -1)) {
             current = zipfile.folder(chunk)
         }
-        return current.file(path.split("/").at(-1)).async("string")
+        const file = current.file(path.split("/").at(-1))
+        if (!file) {
+            console.warn("Patch target not found, skipping: " + path)
+            return Promise.resolve(null)
+        }
+        return file.async("string")
     }
 
     /**
@@ -108,8 +136,17 @@ async function buildFromSource(blob, mods) {
     }
 
     if (mods["Dump from Lovely"]) {
-        parseLovelyDump(mods["Dump from Lovely"], "")
+        // Strip the root dump folder if present — the dump may be nested one level deep
+        // e.g. { "dump": { "game.lua": File, ... } } instead of { "game.lua": File, ... }
+        const dumpTree = mods["Dump from Lovely"]
+        const keys = Object.keys(dumpTree)
+        const firstVal = keys.length > 0 ? dumpTree[keys[0]] : null
+        const isNested = firstVal && !(firstVal instanceof File) && keys.length === 1
+        parseLovelyDump(isNested ? dumpTree[keys[0]] : dumpTree, "")
     }
+
+    // Fix goto/label syntax in all lua files after dump is applied
+    await fixGotoInZip(zipfile)
 
     // Mods go here
     for (const [name, mod] of Object.entries(mods)) {
@@ -137,7 +174,7 @@ async function buildFromSource(blob, mods) {
         for (const file of tomls) {
             try {
                 patch_list.push({
-                    src: toml.parse(await file.toml.text()),
+                    src: toml.parse(fixTomlQuotes(await file.toml.text())),
                     name: name,
                     dont_patch: mod["dont_patch.txt"] ? true : false,
                 })
@@ -190,6 +227,8 @@ async function buildFromSource(blob, mods) {
                 patch.limit = patch.limit || Infinity
 
                 let contents = await get_file(patch.target)
+                if (contents === null) continue
+
                 if (patch.position == "at") {
                     contents = contents.replace(patch.pattern, patch.payload)
                 } else if (patch.position == "before") {
@@ -209,6 +248,7 @@ async function buildFromSource(blob, mods) {
                 const pattern = new RegExp(patch.pattern, "g")
 
                 let contents = await get_file(patch.target)
+                if (contents === null) continue
 
                 let locs = []
             
@@ -258,6 +298,8 @@ async function buildFromSource(blob, mods) {
             if (block.copy && !patch_data.dont_patch) {
                 const patch = block.copy
                 let contents = await get_file(patch.target)
+                if (contents === null) continue
+
                 if (patch.position == "before") {
                     for (const file of patch.sources) {
                         const source_contents = await get_mod_file(patch_data.name, file)
@@ -295,6 +337,7 @@ async function buildFromSource(blob, mods) {
 
     for (const [path, module] of Object.entries(modules_to_load)) {
         let contents = await get_file(path)
+        if (contents === null) continue
         for (const to_require of module) {
             contents += `\nrequire '${to_require}'`
         }
@@ -313,7 +356,7 @@ async function buildFromSource(blob, mods) {
         }
     }
 
-    mods_without_dump = {}
+    const mods_without_dump = {}
 
     for (const [mod_name, mod_data] of Object.entries(mods)) {
         if (mod_name != "Dump from Lovely") {
