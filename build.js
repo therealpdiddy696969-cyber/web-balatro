@@ -139,6 +139,16 @@ async function buildFromSource(blob, mods) {
                 zipfile.file(path.replace(smodsUnderscorePrefix, 'SMODS/'), contents)
             }
         }
+        // Copy lovely/SMODS/preflight/ files to SMODS/preflight/ 
+// so require 'SMODS.preflight.logging' resolves correctly
+const lovelySmods = 'lovely/SMODS/'
+const lovelySmodsPaths = Object.keys(zipfile.files).filter(p => p.startsWith(lovelySmods))
+for (const path of lovelySmodsPaths) {
+    const file = zipfile.file(path)
+    if (!file || zipfile.files[path].dir) continue
+    const contents = await file.async('uint8array')
+    zipfile.file(path.replace(lovelySmods, 'SMODS/'), contents)
+}
     }
 
     await fixGotoInZip(zipfile)
