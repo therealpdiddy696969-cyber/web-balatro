@@ -119,6 +119,10 @@ async function buildFromSource(blob, mods) {
         const isNested = firstVal && !(firstVal instanceof File) && keys.length === 1
         parseLovelyDump(isNested ? dumpTree[keys[0]] : dumpTree, "")
 
+        // Replace SMODS's LuaJIT-dependent nativefs with the web-compatible version
+        // The dump's SMODS/nativefs.lua uses ffi which doesn't exist in the web runtime
+        zipfile.file("SMODS/nativefs.lua", window.patches["nativefs.lua"])
+
         // Find the SMODS preflight core.lua
         const preflightPath = Object.keys(zipfile.files).find(p =>
             p.includes('preflight') && p.endsWith('core.lua') && !p.endsWith('.json')
@@ -349,31 +353,6 @@ async function buildFromSource(blob, mods) {
     for (const patch_file of Object.keys(window.patches)) {
         zipfile.file(patch_file, window.patches[patch_file])
     }
-
-    // Inject a stub ffi module — LuaJIT ffi is not available in the web runtime
-    // SMODS/nativefs.lua tries to require 'ffi' for filesystem access
-    zipfile.file("ffi.lua", `-- ffi stub for web compatibility
--- LuaJIT's ffi library is not available in the web runtime
--- Return a minimal stub that prevents require errors
-local ffi = {}
-ffi.os = "Windows"
-ffi.arch = "x64"
-function ffi.typeof() return {} end
-function ffi.new() return {} end
-function ffi.cast() return {} end
-function ffi.cdef() end
-function ffi.load() return {} end
-function ffi.string() return "" end
-function ffi.copy() end
-function ffi.fill() end
-function ffi.sizeof() return 0 end
-function ffi.alignof() return 0 end
-function ffi.offsetof() return 0 end
-function ffi.istype() return false end
-function ffi.errno() return 0 end
-function ffi.gc(obj) return obj end
-ffi.C = setmetatable({}, { __index = function() return function() end end })
-return ffi`)
 
     if (!zipfile.file("web_patched") || mods["Dump from Lovely"]) {
         progress_bar.value = "60"
