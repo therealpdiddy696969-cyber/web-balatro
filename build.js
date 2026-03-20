@@ -140,15 +140,29 @@ async function buildFromSource(blob, mods) {
             }
         }
 
-        // Copy lovely/SMODS/ files to SMODS/ so require 'SMODS.preflight.x' resolves
-        // e.g. lovely/SMODS/preflight/core/src/preflight/logging.lua -> SMODS/preflight/logging.lua
+        // Copy lovely/SMODS/ files to SMODS/ flattening the deep nesting.
+        // The dump stores files as: lovely/SMODS/preflight/core/src/preflight/logging.lua
+        // but require 'SMODS.preflight.logging' looks for: SMODS/preflight/logging.lua
+        // We flatten by taking everything after the last 'src/' segment.
         const lovelySmods = 'lovely/SMODS/'
         const lovelySmodsPaths = Object.keys(zipfile.files).filter(p => p.startsWith(lovelySmods))
         for (const path of lovelySmodsPaths) {
             const file = zipfile.file(path)
             if (!file || zipfile.files[path].dir) continue
             const contents = await file.async('uint8array')
-            zipfile.file(path.replace(lovelySmods, 'SMODS/'), contents)
+            const relative = path.replace(lovelySmods, '') // e.g. preflight/core/src/preflight/logging.lua
+            const parts = relative.split('/')
+            const lastSrcIdx = parts.lastIndexOf('src')
+            let flatPath
+            if (lastSrcIdx !== -1 && lastSrcIdx < parts.length - 1) {
+                // Take the top-level category (e.g. 'preflight') + everything after last 'src/'
+                const category = parts[0]
+                const afterSrc = parts.slice(lastSrcIdx + 1).join('/')
+                flatPath = category + '/' + afterSrc
+            } else {
+                flatPath = relative
+            }
+            zipfile.file('SMODS/' + flatPath, contents)
         }
     }
 
@@ -373,7 +387,6 @@ async function buildFromSource(blob, mods) {
             const main = zipfile.file("main.lua")
             let contents = await main.async("string")
 
-            // Bootstrap SMODS preflight before anything else
             let preflightBootstrap = ''
             if (smodsPreflight) {
                 const requirePath = smodsPreflight.replace(/\.lua$/, '')
