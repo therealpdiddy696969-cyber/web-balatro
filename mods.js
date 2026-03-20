@@ -1,3 +1,4 @@
+let mods = {} 
 async function pickDirectoryFallback() {
     return new Promise((resolve) => {
         const input = document.createElement('input');
