@@ -140,29 +140,27 @@ async function buildFromSource(blob, mods) {
             }
         }
 
-        // Copy lovely/SMODS/ files to SMODS/ flattening the deep nesting.
-        // The dump stores files as: lovely/SMODS/preflight/core/src/preflight/logging.lua
-        // but require 'SMODS.preflight.logging' looks for: SMODS/preflight/logging.lua
-        // We flatten by taking everything after the last 'src/' segment.
+        // Copy lovely/SMODS/ preflight files to SMODS/ with correct flattened paths.
+        // Dump structure: lovely/SMODS/preflight/core/src/preflight/logging.lua
+        // Required path:  SMODS/preflight/logging.lua
+        // Strategy: take everything after the LAST occurrence of 'src/' in the path.
         const lovelySmods = 'lovely/SMODS/'
         const lovelySmodsPaths = Object.keys(zipfile.files).filter(p => p.startsWith(lovelySmods))
+        console.log("lovely/SMODS/ files to copy:", lovelySmodsPaths.filter(p => !p.endsWith('/')))
         for (const path of lovelySmodsPaths) {
             const file = zipfile.file(path)
             if (!file || zipfile.files[path].dir) continue
             const contents = await file.async('uint8array')
-            const relative = path.replace(lovelySmods, '') // e.g. preflight/core/src/preflight/logging.lua
-            const parts = relative.split('/')
-            const lastSrcIdx = parts.lastIndexOf('src')
-            let flatPath
-            if (lastSrcIdx !== -1 && lastSrcIdx < parts.length - 1) {
-                // Take the top-level category (e.g. 'preflight') + everything after last 'src/'
-                const category = parts[0]
-                const afterSrc = parts.slice(lastSrcIdx + 1).join('/')
-                flatPath = category + '/' + afterSrc
-            } else {
-                flatPath = relative
-            }
-            zipfile.file('SMODS/' + flatPath, contents)
+            // Strip the lovely/SMODS/ prefix
+            const relative = path.replace(lovelySmods, '')
+            // Find the last 'src/' and take everything after it
+            const lastSrcIdx = relative.lastIndexOf('src/')
+            const flatPath = lastSrcIdx !== -1
+                ? relative.slice(lastSrcIdx + 4) // everything after 'src/'
+                : relative
+            const dest = 'SMODS/' + flatPath
+            console.log("Copying", path, "->", dest)
+            zipfile.file(dest, contents)
         }
     }
 
