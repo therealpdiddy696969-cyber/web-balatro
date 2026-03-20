@@ -19,15 +19,26 @@ function string_searchAll(string, regex) {
 }
 
 function fixTomlQuotes(text) {
-    // Replace any run of 4+ single quotes that form the end of a multiline
-    // string with a space inserted before the closing '''
-    // Pattern: one or more ' followed by ''' that closes the block
-    // We do a simple global replace: '''' -> ' ''' (4 quotes -> quote space quotes)
-    // and ''''' -> '' ''' (5 quotes -> two quotes space quotes), etc.
+    // Fix '''' sequences — a run of 4+ single quotes is always invalid TOML
+    // and always means a multiline string ending with a quote before the closing '''
     return text.replace(/'{4,}/g, (match) => {
-        // Keep all but the last 3 quotes, add a space, then the closing '''
         return match.slice(0, match.length - 3) + " '''";
     });
+}
+
+async function fixGotoInZip(zipfile) {
+    for (const path of Object.keys(zipfile.files)) {
+        if (!path.endsWith('.lua')) continue
+        const file = zipfile.file(path)
+        if (!file) continue
+        let contents = await file.async('string')
+        if (!contents.includes('goto') && !contents.includes('::')) continue
+        // Comment out goto statements
+        contents = contents.replace(/\bgoto\s+\w+/g, '-- goto (removed)')
+        // Remove ::label:: declarations entirely (leaving them even commented causes parse errors)
+        contents = contents.replace(/::\w+::/g, '')
+        zipfile.file(path, contents)
+    }
 }
 
 /**
@@ -61,14 +72,19 @@ async function buildFromSource(blob, mods) {
     /**
      * 
      * @param {string} path A file path
-     * @returns {Promise<string>} Contents of file
+     * @returns {Promise<string|null>} Contents of file, or null if not found
      */
     function get_file(path) {
         let current = zipfile
         for (const chunk of path.split("/").slice(0, -1)) {
             current = zipfile.folder(chunk)
         }
-        return current.file(path.split("/").at(-1)).async("string")
+        const file = current.file(path.split("/").at(-1))
+        if (!file) {
+            console.warn("Patch target not found, skipping: " + path)
+            return Promise.resolve(null)
+        }
+        return file.async("string")
     }
 
     /**
@@ -120,8 +136,17 @@ async function buildFromSource(blob, mods) {
     }
 
     if (mods["Dump from Lovely"]) {
-        parseLovelyDump(mods["Dump from Lovely"], "")
+        // Strip the root dump folder if present — the dump may be nested one level deep
+        // e.g. { "dump": { "game.lua": File, ... } } instead of { "game.lua": File, ... }
+        const dumpTree = mods["Dump from Lovely"]
+        const keys = Object.keys(dumpTree)
+        const firstVal = keys.length > 0 ? dumpTree[keys[0]] : null
+        const isNested = firstVal && !(firstVal instanceof File) && keys.length === 1
+        parseLovelyDump(isNested ? dumpTree[keys[0]] : dumpTree, "")
     }
+
+    // Fix goto/label syntax in all lua files after dump is applied
+    await fixGotoInZip(zipfile)
 
     // Mods go here
     for (const [name, mod] of Object.entries(mods)) {
@@ -202,6 +227,8 @@ async function buildFromSource(blob, mods) {
                 patch.limit = patch.limit || Infinity
 
                 let contents = await get_file(patch.target)
+                if (contents === null) continue
+
                 if (patch.position == "at") {
                     contents = contents.replace(patch.pattern, patch.payload)
                 } else if (patch.position == "before") {
@@ -221,6 +248,7 @@ async function buildFromSource(blob, mods) {
                 const pattern = new RegExp(patch.pattern, "g")
 
                 let contents = await get_file(patch.target)
+                if (contents === null) continue
 
                 let locs = []
             
@@ -270,6 +298,8 @@ async function buildFromSource(blob, mods) {
             if (block.copy && !patch_data.dont_patch) {
                 const patch = block.copy
                 let contents = await get_file(patch.target)
+                if (contents === null) continue
+
                 if (patch.position == "before") {
                     for (const file of patch.sources) {
                         const source_contents = await get_mod_file(patch_data.name, file)
@@ -307,6 +337,7 @@ async function buildFromSource(blob, mods) {
 
     for (const [path, module] of Object.entries(modules_to_load)) {
         let contents = await get_file(path)
+        if (contents === null) continue
         for (const to_require of module) {
             contents += `\nrequire '${to_require}'`
         }
