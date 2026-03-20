@@ -1,112 +1,67 @@
-/**
- * 
- * @param {FileSystemDirectoryHandle} dir 
- * @returns {Promise<boolean>}
- */
-async function isMod(dir) {
-    try {
-        await dir.getFileHandle("lovely.toml")
-        return true
-    } catch {
-        try {
-            await dir.getDirectoryHandle("lovely")
-            return true
-        } catch {
-            return false
-        }
-    }
+async function pickDirectoryFallback() {
+    return new Promise((resolve) => {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.webkitdirectory = true;
+        input.onchange = () => resolve(input.files);
+        input.click();
+    });
 }
 
-/**
- * 
- * @param {FileSystemDirectoryHandle} dir
- * @returns {Promise<Object>}
- */
-async function directoryToObject(dir, isRoot=false, showCompatibleWarning=true) {
-    if (isRoot) {
-        try {
-            await dir.getFileHandle("webcompatible")
-        } catch (err) {
-            if (showCompatibleWarning) {
-                alert("Mod " + dir.name + " may not be web compatible.")
-            }
+function fileListToObject(files, rootName) {
+    const root = {};
+    for (const file of files) {
+        // webkitRelativePath = "rootFolder/subdir/file.ext"
+        const parts = file.webkitRelativePath.split('/').slice(1); // strip root folder name
+        let node = root;
+        for (let i = 0; i < parts.length - 1; i++) {
+            node[parts[i]] ??= {};
+            node = node[parts[i]];
         }
+        node[parts[parts.length - 1]] = file;
     }
-    const object = {}
-    for await (const [path, obj] of dir.entries()) {
-        if (obj.kind == "directory") {
-            object[path] = await directoryToObject(obj)
-        } else {
-            object[path] = await obj.getFile()
-        }
-    }
-    return object
+    return root;
 }
-
-let mods = {}
 
 async function addModDir() {
-    $("makeName").placeholder = "Modded"
+    $("makeName").placeholder = "Modded";
+    
+    let modTree, dirName;
 
-    /** @type {FileSystemDirectoryHandle} */
-    const dir_picker = await showDirectoryPicker({
-        mode: "read",
-        startIn: "downloads"
-    });
-
-    if (await isMod(dir_picker)) {
-        mods[dir_picker.name] = await directoryToObject(dir_picker, true)
-    } else {
-        for await (const [path, obj] of dir_picker.entries()) {
-            if (obj.kind == "directory") {
-                mods[obj.name] = await directoryToObject(obj, true)
-            }
-        }
-    }
-    renderModsList()
-}
-
-function clearMods() {
-    mods = {}
-    renderModsList()
-}
-
-function renderModsList() {
-    const list = $("mod-list");
-    list.innerHTML = "";
-    for (const mod_name of Object.keys(mods)) {
-        const mod_item = document.createElement("label");
-        mod_item.innerText = mod_name;
-
-
-        if (mods["Dump from Lovely"] && mod_name != "Dump from Lovely") {
-            const checkbox = document.createElement("input");
-            checkbox.type = "checkbox";
-            checkbox.checked = false;
-            checkbox.onchange = function() {
-                if (checkbox.checked) {
-                    mods[mod_name]["dont_patch.txt"] = new File(["true"], "dont_patch.txt", { type: "text/plain" })
+    if (window.showDirectoryPicker) {
+        const dir_picker = await showDirectoryPicker({ mode: "read", startIn: "downloads" });
+        dirName = dir_picker.name;
+        if (await isMod(dir_picker)) {
+            mods[dirName] = await directoryToObject(dir_picker, true);
+        } else {
+            for await (const [path, obj] of dir_picker.entries()) {
+                if (obj.kind == "directory") {
+                    mods[obj.name] = await directoryToObject(obj, true);
                 }
             }
-            mod_item.prepend(checkbox);
         }
-
-        list.appendChild(mod_item);
-
-        list.appendChild(document.createElement("br"));
+    } else {
+        // Firefox/Brave fallback
+        const files = await pickDirectoryFallback();
+        if (!files.length) return;
+        dirName = files[0].webkitRelativePath.split('/')[0];
+        const tree = fileListToObject(files, dirName);
+        
+        // Check if it's a single mod or collection
+        const isSingleMod = 'lovely.toml' in tree || 'lovely' in tree;
+        if (isSingleMod) {
+            // webcompatible warning
+            if (!('webcompatible' in tree)) alert("Mod " + dirName + " may not be web compatible.");
+            mods[dirName] = tree;
+        } else {
+            for (const [name, subtree] of Object.entries(tree)) {
+                if (typeof subtree === 'object' && !(subtree instanceof File)) {
+                    if (!('webcompatible' in subtree)) alert("Mod " + name + " may not be web compatible.");
+                    mods[name] = subtree;
+                }
+            }
+        }
     }
-}
 
-async function useLovelyDump() {
-    // Open a folder picker
-    const dir_picker = await showDirectoryPicker({
-        mode: "read",
-        startIn: "downloads"
-    });
-
-    mods["Dump from Lovely"] = await directoryToObject(dir_picker, true, false)
-
-    alert("Click the checkboxes next to the mods that were in provided dump.")
-
-    renderModsList()
+    renderModsList();
 }
