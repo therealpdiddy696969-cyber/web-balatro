@@ -19,37 +19,15 @@ function string_searchAll(string, regex) {
 }
 
 function fixTomlQuotes(text) {
-    // Fix '''' sequences in TOML multiline strings.
-    // The Lovely injector allows strings ending with ' before the closing ''',
-    // but the web TOML parser chokes on it. We add a space before the closing
-    // ''' when the content ends with one or more single quotes.
-    let result = '';
-    let remaining = text;
-    while (remaining.length > 0) {
-        const open = remaining.indexOf("'''");
-        if (open === -1) {
-            result += remaining;
-            break;
-        }
-        // Add everything up to and including the opening '''
-        result += remaining.slice(0, open + 3);
-        remaining = remaining.slice(open + 3);
-        // Find the closing '''
-        const close = remaining.indexOf("'''");
-        if (close === -1) {
-            result += remaining;
-            break;
-        }
-        let inner = remaining.slice(0, close);
-        // If inner ends with one or more single quotes, add a space so they
-        // don't merge with the closing ''' and confuse the parser
-        if (inner.endsWith("'")) {
-            inner = inner + ' ';
-        }
-        result += inner + "'''";
-        remaining = remaining.slice(close + 3);
-    }
-    return result;
+    // Replace any run of 4+ single quotes that form the end of a multiline
+    // string with a space inserted before the closing '''
+    // Pattern: one or more ' followed by ''' that closes the block
+    // We do a simple global replace: '''' -> ' ''' (4 quotes -> quote space quotes)
+    // and ''''' -> '' ''' (5 quotes -> two quotes space quotes), etc.
+    return text.replace(/'{4,}/g, (match) => {
+        // Keep all but the last 3 quotes, add a space, then the closing '''
+        return match.slice(0, match.length - 3) + " '''";
+    });
 }
 
 /**
