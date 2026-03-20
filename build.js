@@ -38,6 +38,22 @@ async function fixGotoInZip(zipfile) {
     }
 }
 
+async function fixSmodsPath(zipfile) {
+    // Lovely dumps SMODS files under SMODS/_/ but main.lua expects them at SMODS/
+    // Copy all files from SMODS/_/* to SMODS/* so the path resolution works
+    const prefix = 'SMODS/_/'
+    const paths = Object.keys(zipfile.files).filter(p => p.startsWith(prefix))
+    if (paths.length === 0) return
+    console.log(`Fixing SMODS path: copying ${paths.length} files from SMODS/_/ to SMODS/`)
+    for (const path of paths) {
+        const file = zipfile.file(path)
+        if (!file || zipfile.files[path].dir) continue
+        const contents = await file.async('uint8array')
+        const newPath = path.replace(prefix, 'SMODS/')
+        zipfile.file(newPath, contents)
+    }
+}
+
 /**
  * 
  * @param {Blob | File} blob .zip or .exe of balatro
@@ -116,6 +132,9 @@ async function buildFromSource(blob, mods) {
         const firstVal = keys.length > 0 ? dumpTree[keys[0]] : null
         const isNested = firstVal && !(firstVal instanceof File) && keys.length === 1
         parseLovelyDump(isNested ? dumpTree[keys[0]] : dumpTree, "")
+
+        // Fix SMODS path: Lovely dumps SMODS under SMODS/_/ but code expects SMODS/
+        await fixSmodsPath(zipfile)
     }
 
     await fixGotoInZip(zipfile)
@@ -319,12 +338,11 @@ async function buildFromSource(blob, mods) {
             let contents = await main.async("string")
 
             // Inject web_patches just before love.run() — at this point all requires
-            // have run so SMODS is fully initialized, but we're not yet in the game loop.
+            // have run so SMODS is fully initialized
             const loveRunAnchor = 'function love.run()'
             if (contents.includes(loveRunAnchor)) {
                 contents = contents.replace(loveRunAnchor, 'require "web_patches"\nfunction love.run()')
             } else {
-                // Fallback for vanilla builds without SMODS
                 contents = 'require "web_patches"\n' + contents
             }
 
