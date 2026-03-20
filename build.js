@@ -31,11 +31,8 @@ async function fixGotoInZip(zipfile) {
         if (!file) continue
         let contents = await file.async('string')
         if (!contents.includes('goto') && !contents.includes('::')) continue
-        // Handle "then goto label end" — preserves the closing end
         contents = contents.replace(/\bthen\s+goto\s+\w+\s+end/g, 'then end')
-        // Comment out remaining goto statements
         contents = contents.replace(/\bgoto\s+\w+/g, '-- goto (removed)')
-        // Remove ::label:: declarations entirely
         contents = contents.replace(/::\w+::/g, '')
         zipfile.file(path, contents)
     }
@@ -119,13 +116,17 @@ async function buildFromSource(blob, mods) {
         const firstVal = keys.length > 0 ? dumpTree[keys[0]] : null
         const isNested = firstVal && !(firstVal instanceof File) && keys.length === 1
         parseLovelyDump(isNested ? dumpTree[keys[0]] : dumpTree, "")
-console.log("lovely/ files in zip:", Object.keys(zipfile.files).filter(p => p.startsWith('lovely/')))
+
+        // DEBUG — remove once lovely path is confirmed
+        console.log("=== LOVELY DEBUG ===")
+        console.log("lovely/ files in zip:", Object.keys(zipfile.files).filter(p => p.startsWith('lovely/')))
+        console.log("SMODS/ files in zip:", Object.keys(zipfile.files).filter(p => p.startsWith('SMODS/')).slice(0, 20))
+        console.log("=== END LOVELY DEBUG ===")
 
         // Fix SMODS path: Lovely dumps SMODS under SMODS/_/ but code expects SMODS/
         const smodsPrefix = 'SMODS/_/'
         const smodsPaths = Object.keys(zipfile.files).filter(p => p.startsWith(smodsPrefix))
         if (smodsPaths.length > 0) {
-            console.log(`Fixing SMODS path: copying ${smodsPaths.length} files from SMODS/_/ to SMODS/`)
             for (const path of smodsPaths) {
                 const file = zipfile.file(path)
                 if (!file || zipfile.files[path].dir) continue
@@ -335,12 +336,8 @@ console.log("lovely/ files in zip:", Object.keys(zipfile.files).filter(p => p.st
             const main = zipfile.file("main.lua")
             let contents = await main.async("string")
 
-            // Prepend web_patches — for vanilla builds SMODS doesn't exist yet,
-            // web_patches only uses LOVE APIs so this is safe
             contents = 'require "web_patches"\n' + contents
 
-            // Use regex to handle trailing space variants, arrow function to avoid
-            // JavaScript $ substitution issues in replacement strings
             contents = contents.replace(
                 /if os == 'OS X' or os == 'Windows' then\s/,
                 () => "if false then "
