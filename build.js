@@ -34,11 +34,11 @@ async function fixGotoInZip(zipfile) {
         let contents = await file.async('string')
         if (!contents.includes('goto') && !contents.includes('::')) continue
         // Replace "then goto label end" — inline goto at end of if statement
-        // Must be done before the general goto replacement
+        // Must be done before the general goto replacement to preserve the 'end'
         contents = contents.replace(/\bthen\s+goto\s+\w+\s+end/g, 'then end')
         // Replace standalone goto statements
         contents = contents.replace(/\bgoto\s+\w+/g, '-- goto (removed)')
-        // Remove ::label:: declarations entirely
+        // Remove ::label:: declarations entirely (even commented-out labels cause parse errors)
         contents = contents.replace(/::\w+::/g, '')
         zipfile.file(path, contents)
     }
@@ -385,7 +385,18 @@ async function buildFromSource(blob, mods) {
         {
             const main = zipfile.file("main.lua")
             let contents = await main.async("string")
-            contents = 'require "web_patches"\n' + contents
+
+            // Inject web_patches AFTER SMODS is initialized (after the assert(SMODS.path) line)
+            // rather than at the top of the file, since SMODS doesn't exist yet at the top.
+            // The assert line is a reliable anchor present in all SMODS-patched main.lua files.
+            const smodsAnchor = 'assert(SMODS.path,'
+            if (contents.includes(smodsAnchor)) {
+                contents = contents.replace(smodsAnchor, 'require "web_patches"\n' + smodsAnchor)
+            } else {
+                // Fallback for vanilla main.lua (no SMODS) — prepend as before
+                contents = 'require "web_patches"\n' + contents
+            }
+
             contents = contents.replace("if os == 'OS X' or os == 'Windows' then", "if false then")
             contents = contents.replace("G:start_up()", "G:start_up()\n    G.SOUND_MANAGER = { channel = { push = function() end } }")
             zipfile.file("main.lua", contents)
