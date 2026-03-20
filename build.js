@@ -119,10 +119,6 @@ async function buildFromSource(blob, mods) {
         const isNested = firstVal && !(firstVal instanceof File) && keys.length === 1
         parseLovelyDump(isNested ? dumpTree[keys[0]] : dumpTree, "")
 
-        // Replace SMODS's LuaJIT-dependent nativefs with the web-compatible version
-        // The dump's SMODS/nativefs.lua uses ffi which doesn't exist in the web runtime
-        zipfile.file("SMODS/nativefs.lua", window.patches["nativefs.lua"])
-
         // Find the SMODS preflight core.lua
         const preflightPath = Object.keys(zipfile.files).find(p =>
             p.includes('preflight') && p.endsWith('core.lua') && !p.endsWith('.json')
@@ -352,6 +348,13 @@ async function buildFromSource(blob, mods) {
 
     for (const patch_file of Object.keys(window.patches)) {
         zipfile.file(patch_file, window.patches[patch_file])
+    }
+
+    // Override SMODS nativefs AFTER everything else so it always wins.
+    // The dump's SMODS/nativefs.lua uses LuaJIT ffi which doesn't exist in the web runtime.
+    // Replace it with the web-compatible pure-Lua version from patches.js.
+    if (mods["Dump from Lovely"]) {
+        zipfile.file("SMODS/nativefs.lua", window.patches["nativefs.lua"])
     }
 
     if (!zipfile.file("web_patched") || mods["Dump from Lovely"]) {
