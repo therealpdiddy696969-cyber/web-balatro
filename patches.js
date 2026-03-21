@@ -521,14 +521,12 @@ end`,
 local nativefs = {}
 
 function join_path(a, b)
-    -- normalize double slashes
-    if b:find("^/+") then
-        b = b:gsub("^/+", "")
-    end
+    -- If b is absolute (starts with /), return b as-is only if a is empty
+    if b:find("^/") and a == "" then return b end
+    -- Strip leading slashes from b to avoid double-slash issues
+    b = b:gsub("^/+", "")
     if a == "" then return b end
-    if not a:find("/$") then
-        a = a .. "/"
-    end
+    if not a:find("/$") then a = a .. "/" end
     return (a .. b):gsub("//+", "/")
 end
 
@@ -557,9 +555,15 @@ function nativefs.getDirectoryItemsInfo(path)
     -- { type: "directory" | "file", name: "..." }
     local files = love.filesystem.getDirectoryItems(join_path(nativefs.workingDirectory, path))
     local out = {}
+    -- love.filesystem.getInfo returns type as string in LOVE 11.x
+    -- but some builds return numeric types, so normalize
+    local type_map = {[0]="file", [1]="directory", [2]="symlink", [3]="other",
+                      file="file", directory="directory", symlink="symlink", other="other"}
     for i, v in ipairs(files) do
         local info = love.filesystem.getInfo(join_path(join_path(nativefs.workingDirectory, path), v))
-        out[i] = { name = v, type = info.type }
+        if info then
+            out[i] = { name = v, type = type_map[info.type] or tostring(info.type) }
+        end
     end
     return out
 end
