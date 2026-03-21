@@ -534,11 +534,14 @@ nativefs.workingDirectory = ""
 
 -- Read a file from the game's source or save directory
 function nativefs.read(filename)
-    if love.filesystem.getInfo(join_path(nativefs.workingDirectory, filename)) then
-        return love.filesystem.read(join_path(nativefs.workingDirectory, filename))
-    else
-        return nil, "File does not exist"
-    end
+    local fullpath = join_path(nativefs.workingDirectory, filename)
+    -- Try full path first
+    local ok, result = pcall(love.filesystem.read, fullpath)
+    if ok and result then return result end
+    -- Try filename directly (in case workingDirectory already included)
+    ok, result = pcall(love.filesystem.read, filename)
+    if ok and result then return result end
+    return nil, "File does not exist: " .. tostring(fullpath)
 end
 
 -- Write to a file in the save directory
