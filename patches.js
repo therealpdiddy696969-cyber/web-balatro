@@ -618,8 +618,13 @@ function lovely.remove_var(name) end
 function lovely.set_var(name, value) end
 function lovely.get_var(name) return nil end
 function lovely.reload_patches() end
-function lovely.apply_patches(path)
+function lovely.apply_patches(path, source)
     print("apply_patches loading: " .. tostring(path))
+    -- source is already provided as second arg — use it directly if available
+    if source then
+        print("apply_patches: using provided source for " .. tostring(path) .. " (" .. #source .. " bytes)")
+        return source
+    end
     local function try_read(p)
         local ok, result = pcall(love.filesystem.read, p)
         if ok and result then return result end
