@@ -371,7 +371,8 @@ async function buildFromSource(blob, mods) {
             loaderContents = loaderContents.replace(
                 'function initLoader()',
                 () => `function initLoader()
-    SMODS.MODS_DIR = SMODS.MODS_DIR or "Mods"`
+    SMODS.MODS_DIR = SMODS.MODS_DIR or "Mods"
+    SMODS.id = SMODS.id or "Steamodded"`
             )
             if (zipfile.file('SMODS/preflight/loader.lua')) {
                 zipfile.file('SMODS/preflight/loader.lua', loaderContents)
@@ -466,9 +467,10 @@ NFS.workingDirectory = ""
 if SMODS and SMODS.path then
     SMODS.path = SMODS.path:match("(Mods/[^/]+/)") or SMODS.path
 end
--- Set MODS_DIR so loadMods() can find the mods folder
+-- Set MODS_DIR and id so loadMods() works correctly
 if SMODS then
     SMODS.MODS_DIR = SMODS.MODS_DIR or "Mods"
+    SMODS.id = SMODS.id or "Steamodded"
 end
 assert(SMODS.path,`
             )
