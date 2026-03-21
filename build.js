@@ -433,9 +433,7 @@ assert(SMODS.path,`
                 // Inject print after newShader to see which one hangs
                 gameContents = gameContents.replace(
                     /G\.SHADERS\[shader_name\]\s*=\s*love\.graphics\.newShader\(shader\)/g,
-                    'print("Compiling shader: " .. tostring(shader_name))
-G.SHADERS[shader_name] = love.graphics.newShader(shader)
-print("Done shader: " .. tostring(shader_name))'
+                    'print("Compiling shader: " .. tostring(shader_name))\nG.SHADERS[shader_name] = love.graphics.newShader(shader)\nprint("Done shader: " .. tostring(shader_name))'
                 )
                 zipfile.file("game.lua", gameContents)
             }
