@@ -592,5 +592,12 @@ return nativefs`,
 lovely.version = "1.0.0-WEB"
 lovely.mod_dir = "Mods/"
 
+-- Stubs for Lovely API functions used by SMODS preflight
+-- These are no-ops in the web build since Lovely doesn't run natively
+function lovely.remove_var(name) end
+function lovely.set_var(name, value) end
+function lovely.get_var(name) return nil end
+function lovely.reload_patches() end
+
 return lovely`
 }
