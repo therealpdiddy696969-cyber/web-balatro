@@ -581,7 +581,7 @@ function nativefs.getDirectoryItemsInfo(path)
             local ok, info = pcall(love.filesystem.getInfo, itempath)
             if not ok or not info then t = "directory" end -- assume directory if getInfo fails
         end
-        out[#out+1] = { name = v, type = t }
+        out[#out+1] = { name = v, type = t, size = 0, modtime = 0 }
     end
     return out
 end
