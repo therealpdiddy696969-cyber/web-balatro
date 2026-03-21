@@ -335,6 +335,13 @@ async function buildFromSource(blob, mods) {
             mods_without_dump[mod_name] = mod_data
         }
     }
+    // Add dont_patch.txt to SMODS folder to prevent duplicate detection
+    // SMODS is loaded via the dump, not as a regular mod
+    for (const mod_name of Object.keys(mods_without_dump)) {
+        if (mod_name.toLowerCase().includes('smods')) {
+            mods_without_dump[mod_name]['dont_patch.txt'] = new File([''], 'dont_patch.txt')
+        }
+    }
     console.log(mods_without_dump)
     move_dir(mods_without_dump, "Mods/")
 
