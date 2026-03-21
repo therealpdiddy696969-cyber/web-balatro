@@ -426,6 +426,22 @@ assert(SMODS.path,`
         }
 
         {
+            // Add shader compile logging to game.lua
+            const gameFile = zipfile.file("game.lua")
+            if (gameFile) {
+                let gameContents = await gameFile.async("string")
+                // Inject print after newShader to see which one hangs
+                gameContents = gameContents.replace(
+                    /G\.SHADERS\[shader_name\]\s*=\s*love\.graphics\.newShader\(shader\)/g,
+                    'print("Compiling shader: " .. tostring(shader_name))
+G.SHADERS[shader_name] = love.graphics.newShader(shader)
+print("Done shader: " .. tostring(shader_name))'
+                )
+                zipfile.file("game.lua", gameContents)
+            }
+        }
+
+        {
             // Disable fullscreen in conf.lua — browsers block automatic fullscreen
             const confFile = zipfile.file("conf.lua")
             if (confFile) {
