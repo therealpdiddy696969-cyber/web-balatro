@@ -548,21 +548,34 @@ end
 
 -- Check if a path exists and get info
 function nativefs.getInfo(path)
-    return love.filesystem.getInfo(join_path(nativefs.workingDirectory, path))
+    local ok, info = pcall(love.filesystem.getInfo, join_path(nativefs.workingDirectory, path))
+    if not ok or not info then return nil end
+    -- Normalize type to string
+    local t = info.type
+    if t == 0 or t == "file" then info.type = "file"
+    elseif t == 1 or t == "directory" then info.type = "directory"
+    elseif t == 2 or t == "symlink" then info.type = "symlink"
+    else info.type = "other" end
+    return info
 end
 
 function nativefs.getDirectoryItemsInfo(path)
     -- { type: "directory" | "file", name: "..." }
-    local files = love.filesystem.getDirectoryItems(join_path(nativefs.workingDirectory, path))
+    local fullpath = join_path(nativefs.workingDirectory, path)
+    local files = love.filesystem.getDirectoryItems(fullpath)
     local out = {}
-    -- love.filesystem.getInfo returns type as string in LOVE 11.x
-    -- but some builds return numeric types, so normalize
-    local type_map = {[0]="file", [1]="directory", [2]="symlink", [3]="other",
-                      file="file", directory="directory", symlink="symlink", other="other"}
     for i, v in ipairs(files) do
-        local info = love.filesystem.getInfo(join_path(join_path(nativefs.workingDirectory, path), v))
-        if info then
-            out[i] = { name = v, type = type_map[info.type] or tostring(info.type) }
+        local itempath = join_path(fullpath, v)
+        -- Use pcall to safely get info without type filter
+        local ok, info = pcall(love.filesystem.getInfo, itempath)
+        if ok and info then
+            -- Normalize type to string
+            local t = info.type
+            if t == 0 or t == "file" then t = "file"
+            elseif t == 1 or t == "directory" then t = "directory"
+            elseif t == 2 or t == "symlink" then t = "symlink"
+            else t = "other" end
+            out[#out+1] = { name = v, type = t }
         end
     end
     return out
