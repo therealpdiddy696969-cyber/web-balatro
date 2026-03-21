@@ -600,8 +600,14 @@ function nativefs.newFileData(path)
 end
 
 function nativefs.setWorkingDirectory(path)
-    nativefs.workingDirectory = join_path(nativefs.workingDirectory, path)
-    print("Navigated to "..nativefs.workingDirectory)
+    -- If path is absolute or starts with a known absolute prefix, reset working dir
+    if path:find("^/") or path:find("^[A-Za-z]:") then
+        nativefs.workingDirectory = ""
+        print("Navigated to / (absolute path reset)")
+    else
+        nativefs.workingDirectory = join_path(nativefs.workingDirectory, path)
+        print("Navigated to "..nativefs.workingDirectory)
+    end
 end
 
 function nativefs.getWorkingDirectory()
