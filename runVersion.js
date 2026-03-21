@@ -9,30 +9,32 @@ function runVersion(version) {
          */
         async (game) => {
             const PREFIX = "Balatro_" + version + "_";
-
             const originalOpen = indexedDB.open;
             const originalDeleteDatabase = indexedDB.deleteDatabase;
-
             indexedDB.open = function(name, version) {
                 const prefixedName = PREFIX + name;
                 return version !== undefined
                 ? originalOpen.call(this, prefixedName, version)
                 : originalOpen.call(this, prefixedName);
             };
-
             indexedDB.deleteDatabase = function(name) {
                 const prefixedName = PREFIX + name;
                 return originalDeleteDatabase.call(this, prefixedName);
             };
-
             document.body.innerHTML = ""
             const canvas = document.createElement("canvas")
             canvas.id = "canvas"
             document.body.appendChild(canvas)
             document.body.classList.add("game")
 
-            const data = new Uint8Array(await game.arrayBuffer())
+            // Disable fullscreen — browsers block automatic fullscreen and
+            // it causes the game to disappear when clicked.
+            canvas.requestFullscreen = function() { return Promise.resolve(); }
+            document.documentElement.requestFullscreen = function() { return Promise.resolve(); }
+            const _requestFullscreen = Element.prototype.requestFullscreen;
+            Element.prototype.requestFullscreen = function() { return Promise.resolve(); }
 
+            const data = new Uint8Array(await game.arrayBuffer())
             Module = window.Module || {}
             Module.INITIAL_MEMORY = 268435456
             Module.canvas = canvas
