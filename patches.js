@@ -598,6 +598,7 @@ function lovely.remove_var(name) end
 function lovely.set_var(name, value) end
 function lovely.get_var(name) return nil end
 function lovely.reload_patches() end
+function lovely.apply_patches() end
 
 return lovely`
 }
