@@ -601,8 +601,15 @@ function lovely.reload_patches() end
 function lovely.apply_patches(path)
     local contents = love.filesystem.read(path)
     if contents then return contents end
-    if NFS then contents = NFS.read(path) end
-    return contents
+    contents = love.filesystem.read("resources/shaders/" .. path)
+    if contents then return contents end
+    if NFS then
+        contents = NFS.read(path)
+        if contents then return contents end
+        contents = NFS.read("resources/shaders/" .. path)
+        if contents then return contents end
+    end
+    return nil
 end
 
 return lovely`
