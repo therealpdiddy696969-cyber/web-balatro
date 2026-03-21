@@ -361,6 +361,30 @@ async function buildFromSource(blob, mods) {
     // in the zip (after move_dir and src copy), so SMODS src files get fixed too
     await fixGotoInZip(zipfile)
 
+    // Patch SMODS loader.lua to set MODS_DIR if nil
+    // SMODS.MODS_DIR is normally set by lovely but isn't in web build
+    {
+        const loaderFile = zipfile.file('SMODS/preflight/loader.lua') ||
+                           zipfile.file('SMODS/src/preflight/loader.lua')
+        if (loaderFile) {
+            let loaderContents = await loaderFile.async('string')
+            loaderContents = loaderContents.replace(
+                'function initLoader()',
+                () => `function initLoader()
+    SMODS.MODS_DIR = SMODS.MODS_DIR or "Mods"`
+            )
+            if (zipfile.file('SMODS/preflight/loader.lua')) {
+                zipfile.file('SMODS/preflight/loader.lua', loaderContents)
+            }
+            if (zipfile.file('SMODS/src/preflight/loader.lua')) {
+                zipfile.file('SMODS/src/preflight/loader.lua', loaderContents)
+            }
+            console.log('Patched loader.lua to set SMODS.MODS_DIR')
+        } else {
+            console.warn('Could not find loader.lua to patch')
+        }
+    }
+
     progress_bar.value = "50"
     status_text.innerText = "Applying Patches"
 
