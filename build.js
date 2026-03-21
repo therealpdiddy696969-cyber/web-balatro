@@ -140,8 +140,7 @@ async function buildFromSource(blob, mods) {
             }
         }
 
-        // Copy lovely/SMODS/ preflight files to SMODS/ with flattened paths.
-        // Takes everything after the last 'src/' in the path.
+        // Copy lovely/SMODS/ preflight files to SMODS/ with flattened paths
         const lovelySmods = 'lovely/SMODS/'
         const lovelySmodsPaths = Object.keys(zipfile.files).filter(p => p.startsWith(lovelySmods))
         for (const path of lovelySmodsPaths) {
@@ -341,7 +340,7 @@ async function buildFromSource(blob, mods) {
     console.log(mods_without_dump)
     move_dir(mods_without_dump, "Mods/")
 
-    // Find SMODS mod folder and copy src files to SMODS/ so requires resolve
+    // Find SMODS mod folder and copy ALL src files to SMODS/ so requires resolve
     const smodsFolderEntry = Object.keys(zipfile.files).find(p =>
         p.startsWith('Mods/') && p.toLowerCase().includes('smods') && p.split('/').length === 3 && p.endsWith('/')
     )
@@ -353,8 +352,9 @@ async function buildFromSource(blob, mods) {
             const file = zipfile.file(path)
             if (!file || zipfile.files[path].dir) continue
             const contents = await file.async('uint8array')
-            // Copy to both SMODS/src/ (for SMODS.path resolution) and SMODS/ (for direct requires)
             const relPath = path.replace(smodsModSrc, '')
+            // Copy to SMODS/src/ (for SMODS.path + "src/x" resolution)
+            // and SMODS/ (for direct require 'SMODS.x' resolution)
             zipfile.file('SMODS/src/' + relPath, contents)
             zipfile.file('SMODS/' + relPath, contents)
         }
@@ -387,6 +387,20 @@ async function buildFromSource(blob, mods) {
             }
 
             contents = preflightBootstrap + 'require "web_patches"\n' + contents
+
+            // After preflight runs, nativefs.workingDirectory gets set to absolute paths
+            // that don't work in LÖVE's virtual filesystem. Reset it and fix SMODS.path
+            // to be relative before SMODS tries to load its src files.
+            contents = contents.replace(
+                'assert(SMODS.path,',
+                () => `-- Fix SMODS.path and nativefs state after preflight navigation
+NFS.workingDirectory = ""
+if SMODS and SMODS.path then
+    -- Strip absolute path prefix, keep only the relative Mods/xxx/ part
+    SMODS.path = SMODS.path:match("(Mods/[^/]+/)") or SMODS.path
+end
+assert(SMODS.path,`
+            )
 
             contents = contents.replace(
                 /if os == 'OS X' or os == 'Windows' then\s/,
