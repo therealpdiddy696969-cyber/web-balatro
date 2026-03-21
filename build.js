@@ -372,7 +372,15 @@ async function buildFromSource(blob, mods) {
                 'function initLoader()',
                 () => `function initLoader()
     SMODS.MODS_DIR = SMODS.MODS_DIR or "Mods"
-    SMODS.id = SMODS.id or "Steamodded"`
+    SMODS.id = SMODS.id or "Steamodded"
+    -- sUtil stub for web build in case sharedUtil is missing
+    if not sUtil then
+        sUtil = {
+            getBalatroVersion = function() return G and G.VERSION or "1.0.1o-FULL" end,
+            hex = function(x) return {1,1,1,1} end,
+            V = function(x) return {is_valid=function() return true end, __le=function() return true end, __lt=function() return true end} end,
+        }
+    end`
             )
             if (zipfile.file('SMODS/preflight/loader.lua')) {
                 zipfile.file('SMODS/preflight/loader.lua', loaderContents)
