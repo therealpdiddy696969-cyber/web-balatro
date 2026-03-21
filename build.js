@@ -426,16 +426,15 @@ assert(SMODS.path,`
         }
 
         {
-            // Add shader compile logging to game.lua
-            const gameFile = zipfile.file("game.lua")
+            // Patch game.lua shader loading — wrap newShader in pcall + logging
+            const gameFile = zipfile.file('game.lua')
             if (gameFile) {
-                let gameContents = await gameFile.async("string")
-                // Inject print after newShader to see which one hangs
+                let gameContents = await gameFile.async('string')
                 gameContents = gameContents.replace(
-                    /G\.SHADERS\[shader_name\]\s*=\s*love\.graphics\.newShader\(shader\)/g,
-                    'print("Compiling shader: " .. tostring(shader_name))\nG.SHADERS[shader_name] = love.graphics.newShader(shader)\nprint("Done shader: " .. tostring(shader_name))'
+                    'self.SHADERS[shader_name] = love.graphics.newShader(shader)',
+                    'print("Compiling shader: " .. tostring(shader_name))\nlocal _ok, _s = pcall(love.graphics.newShader, shader)\nif _ok then self.SHADERS[shader_name] = _s print("Done: " .. tostring(shader_name)) else print("SHADER FAILED: " .. tostring(shader_name)) end'
                 )
-                zipfile.file("game.lua", gameContents)
+                zipfile.file('game.lua', gameContents)
             }
         }
 
