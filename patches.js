@@ -521,13 +521,15 @@ end`,
 local nativefs = {}
 
 function join_path(a, b)
-    if b:find("^/") then
-        return b
+    -- normalize double slashes
+    if b:find("^/+") then
+        b = b:gsub("^/+", "")
     end
+    if a == "" then return b end
     if not a:find("/$") then
         a = a .. "/"
     end
-    return a .. b
+    return (a .. b):gsub("//+", "/")
 end
 
 nativefs.workingDirectory = ""
@@ -626,7 +628,7 @@ return nativefs`,
   "lovely.lua": `local lovely = {}
 
 lovely.version = "1.0.0-WEB"
-lovely.mod_dir = "Mods/"
+lovely.mod_dir = "Mods"
 
 -- Stubs for Lovely API functions used by SMODS preflight
 function lovely.remove_var(name) end
