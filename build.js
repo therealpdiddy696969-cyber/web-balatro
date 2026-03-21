@@ -432,8 +432,7 @@ assert(SMODS.path,`
                 let confContents = await confFile.async("string")
                 confContents = confContents.replace("t.window.fullscreen = true", "t.window.fullscreen = false")
                 // Also append a forced override at the end just in case
-                confContents += "
-t.window.fullscreen = false"
+                confContents += "\nt.window.fullscreen = false"
                 zipfile.file("conf.lua", confContents)
             }
         }
