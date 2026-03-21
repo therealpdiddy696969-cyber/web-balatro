@@ -406,7 +406,7 @@ assert(SMODS.path,`
             )
             contents = contents.replace(
                 "G:start_up()",
-                () => "G:start_up()\n    G.SOUND_MANAGER = { channel = { push = function() end } }"
+                () => "G.SOUND_MANAGER = { channel = { push = function() end } }\n    G:start_up()"
             )
             zipfile.file("main.lua", contents)
         }
