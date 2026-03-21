@@ -500,7 +500,22 @@ end
 
 -- Patch load for smods
 -- btw, mod support is pretty nonexistent
-load = loadstring`,
+load = loadstring
+
+-- Stub love.audio.newSource to prevent WebAudio crashes
+local _newSource = love.audio.newSource
+love.audio.newSource = function(...)
+    local ok, src = pcall(_newSource, ...)
+    if ok and src then return src end
+    return setmetatable({}, {__index = function() return function() end end})
+end
+
+-- Stub love.audio.stop to prevent crashes when stopping invalid sources
+local _audioStop = love.audio.stop
+love.audio.stop = function(...)
+    local ok, err = pcall(_audioStop, ...)
+    if not ok then print("audio.stop error (ignored): " .. tostring(err)) end
+end`,
 // -------------------------------------------------------------------------------
   "nativefs.lua": `-- faknativefs.lua
 local nativefs = {}
