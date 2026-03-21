@@ -598,7 +598,12 @@ function lovely.remove_var(name) end
 function lovely.set_var(name, value) end
 function lovely.get_var(name) return nil end
 function lovely.reload_patches() end
-function lovely.apply_patches() return true end
+function lovely.apply_patches(path)
+    local contents = love.filesystem.read(path)
+    if contents then return contents end
+    if NFS then contents = NFS.read(path) end
+    return contents
+end
 
 return lovely`
 }
