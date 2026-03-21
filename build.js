@@ -331,7 +331,7 @@ async function buildFromSource(blob, mods) {
 
     const mods_without_dump = {}
     for (const [mod_name, mod_data] of Object.entries(mods)) {
-        if (mod_name != "Dump from Lovely" && !mod_name.toLowerCase().includes('smods')) {
+        if (mod_name != "Dump from Lovely") {
             mods_without_dump[mod_name] = mod_data
         }
     }
@@ -378,6 +378,26 @@ async function buildFromSource(blob, mods) {
 
     // Debug: show what's in Mods/
     console.log('Mods/ folders:', Object.keys(zipfile.files).filter(p => p.startsWith('Mods/') && p.split('/').length === 3 && p.endsWith('/')))
+
+    // Fix SMODS manifest.json — the web build needs main_file set correctly
+    // to prevent 'duplicate installation' crash
+    const smodsManifestEntry = Object.keys(zipfile.files).find(p =>
+        p.startsWith('Mods/') && p.toLowerCase().includes('smods') && p.endsWith('/manifest.json')
+    )
+    if (smodsManifestEntry) {
+        const smodsFolderForManifest = smodsManifestEntry.replace('manifest.json', '')
+        const fixedManifest = JSON.stringify({
+            id: 'Steamodded',
+            name: 'Steamodded',
+            version: '1.0.0-BETA-1503a',
+            main_file: 'main.lua',
+            author: ['Steamodded'],
+            description: 'SMODS mod loader',
+            prefix: 'SMODS'
+        })
+        zipfile.file(smodsManifestEntry, fixedManifest)
+        console.log('Fixed SMODS manifest.json at', smodsManifestEntry)
+    }
 
     // Replace nativefs.lua in ALL mod folders with web-compatible version
     // Talisman and other mods ship their own FFI-based nativefs that won't work in web
