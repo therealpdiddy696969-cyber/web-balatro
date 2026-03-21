@@ -352,6 +352,19 @@ love.system.getOS = function()
   return "Windows"
 end
 
+-- Disable fullscreen — browsers block automatic fullscreen requests
+local _setMode = love.window.setMode
+love.window.setMode = function(w, h, flags)
+    if flags then flags.fullscreen = false end
+    return _setMode(w, h, flags)
+end
+
+local _setFullscreen = love.window.setFullscreen
+love.window.setFullscreen = function(fullscreen, fstype)
+    -- no-op in web build
+    return true, nil
+end
+
 local _format = string.format
 function string:format(key, ...)
     local args = {...}
