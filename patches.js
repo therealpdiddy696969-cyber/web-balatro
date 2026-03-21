@@ -548,15 +548,19 @@ end
 
 -- Check if a path exists and get info
 function nativefs.getInfo(path)
-    local ok, info = pcall(love.filesystem.getInfo, join_path(nativefs.workingDirectory, path))
-    if not ok or not info then return nil end
-    -- Normalize type to string
-    local t = info.type
-    if t == 0 or t == "file" then info.type = "file"
-    elseif t == 1 or t == "directory" then info.type = "directory"
-    elseif t == 2 or t == "symlink" then info.type = "symlink"
-    else info.type = "other" end
-    return info
+    local fullpath = join_path(nativefs.workingDirectory, path)
+    -- Try as directory first
+    local children = love.filesystem.getDirectoryItems(fullpath)
+    if children then
+        return { type = "directory", size = 0, modtime = 0 }
+    end
+    -- Try as file
+    local ok, info = pcall(love.filesystem.getInfo, fullpath)
+    if ok and info then
+        info.type = "file"
+        return info
+    end
+    return nil
 end
 
 function nativefs.getDirectoryItemsInfo(path)
@@ -566,17 +570,15 @@ function nativefs.getDirectoryItemsInfo(path)
     local out = {}
     for i, v in ipairs(files) do
         local itempath = join_path(fullpath, v)
-        -- Use pcall to safely get info without type filter
-        local ok, info = pcall(love.filesystem.getInfo, itempath)
-        if ok and info then
-            -- Normalize type to string
-            local t = info.type
-            if t == 0 or t == "file" then t = "file"
-            elseif t == 1 or t == "directory" then t = "directory"
-            elseif t == 2 or t == "symlink" then t = "symlink"
-            else t = "other" end
-            out[#out+1] = { name = v, type = t }
+        -- Determine type by trying to list as directory
+        local children = love.filesystem.getDirectoryItems(itempath)
+        local t = (children and #children >= 0) and "directory" or "file"
+        -- Verify it actually exists as a file if not a directory
+        if t == "file" then
+            local ok, info = pcall(love.filesystem.getInfo, itempath)
+            if not ok or not info then t = "directory" end -- assume directory if getInfo fails
         end
+        out[#out+1] = { name = v, type = t }
     end
     return out
 end
