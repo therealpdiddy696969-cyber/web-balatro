@@ -619,7 +619,7 @@ function lovely.set_var(name, value) end
 function lovely.get_var(name) return nil end
 function lovely.reload_patches() end
 function lovely.apply_patches(path)
-    print("apply_patches: " .. tostring(path))
+    print("apply_patches loading: " .. tostring(path))
     local function try_read(p)
         local ok, result = pcall(love.filesystem.read, p)
         if ok and result then return result end
@@ -633,7 +633,7 @@ function lovely.apply_patches(path)
     for _, p in ipairs(tries) do
         local contents = try_read(p)
         if contents then
-            print("apply_patches: found at " .. p)
+            print("apply_patches: got contents for " .. p .. " (" .. #contents .. " bytes)")
             return contents
         end
     end
@@ -644,13 +644,13 @@ function lovely.apply_patches(path)
             local ok, contents = pcall(NFS.read, p)
             if ok and contents then
                 NFS.workingDirectory = old_wd
-                print("apply_patches: found via NFS at " .. p)
+                print("apply_patches: got contents via NFS for " .. p)
                 return contents
             end
         end
         NFS.workingDirectory = old_wd
     end
-    print("apply_patches: not found, using passthrough for " .. tostring(path))
+    print("apply_patches: NOT FOUND, using passthrough for " .. tostring(path))
     return [[
         #ifdef VERTEX
         vec4 position(mat4 transform_projection, vec4 vertex_position) {
