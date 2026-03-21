@@ -373,6 +373,9 @@ async function buildFromSource(blob, mods) {
         zipfile.file("SMODS/nativefs.lua", window.patches["nativefs.lua"])
     }
 
+    // Put web nativefs at root so require('nativefs') always finds it first
+    zipfile.file("nativefs.lua", window.patches["nativefs.lua"])
+
     // Debug: show what's in Mods/
     console.log('Mods/ folders:', Object.keys(zipfile.files).filter(p => p.startsWith('Mods/') && p.split('/').length === 3 && p.endsWith('/')))
 
