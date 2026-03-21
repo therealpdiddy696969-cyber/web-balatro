@@ -365,6 +365,13 @@ love.window.setFullscreen = function(fullscreen, fstype)
     return true, nil
 end
 
+-- Override love.conf to force fullscreen off before window creation
+local _love_conf = love.conf
+love.conf = function(t)
+    if _love_conf then _love_conf(t) end
+    t.window.fullscreen = false
+end
+
 local _format = string.format
 function string:format(key, ...)
     local args = {...}
