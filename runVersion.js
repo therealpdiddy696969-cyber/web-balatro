@@ -27,27 +27,10 @@ function runVersion(version) {
             document.body.appendChild(canvas)
             document.body.classList.add("game")
 
-            // Disable fullscreen
+            // Disable fullscreen — browsers block automatic fullscreen requests
             canvas.requestFullscreen = function() { return Promise.resolve(); }
             document.documentElement.requestFullscreen = function() { return Promise.resolve(); }
             Element.prototype.requestFullscreen = function() { return Promise.resolve(); }
-
-            // Scale canvas to fit viewport
-            const style = document.createElement("style")
-            style.textContent = `
-                body.game {
-                    margin: 0; padding: 0; background: black;
-                    display: flex; justify-content: center; align-items: center;
-                    width: 100vw; height: 100vh; overflow: hidden;
-                }
-                body.game canvas {
-                    max-width: 100vw !important;
-                    max-height: 100vh !important;
-                    width: auto !important;
-                    height: auto !important;
-                }
-            `
-            document.head.appendChild(style)
 
             const data = new Uint8Array(await game.arrayBuffer())
             Module = window.Module || {}
