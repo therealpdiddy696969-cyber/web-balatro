@@ -154,8 +154,6 @@ async function buildFromSource(blob, mods) {
         }
     }
 
-    await fixGotoInZip(zipfile)
-
     for (const [name, mod] of Object.entries(mods)) {
         if (name == "Dump from Lovely") {
             continue
@@ -353,13 +351,15 @@ async function buildFromSource(blob, mods) {
             if (!file || zipfile.files[path].dir) continue
             const contents = await file.async('uint8array')
             const relPath = path.replace(smodsModSrc, '')
-            // Copy to SMODS/src/ (for SMODS.path + "src/x" resolution)
-            // and SMODS/ (for direct require 'SMODS.x' resolution)
             zipfile.file('SMODS/src/' + relPath, contents)
             zipfile.file('SMODS/' + relPath, contents)
         }
         console.log("Copied SMODS src files from Mods/" + smodsFolderName + "/src/")
     }
+
+    // Fix goto/label syntax in ALL lua files — must run AFTER all mod files are
+    // in the zip (after move_dir and src copy), so SMODS src files get fixed too
+    await fixGotoInZip(zipfile)
 
     progress_bar.value = "50"
     status_text.innerText = "Applying Patches"
@@ -388,15 +388,13 @@ async function buildFromSource(blob, mods) {
 
             contents = preflightBootstrap + 'require "web_patches"\n' + contents
 
-            // After preflight runs, nativefs.workingDirectory gets set to absolute paths
-            // that don't work in LÖVE's virtual filesystem. Reset it and fix SMODS.path
-            // to be relative before SMODS tries to load its src files.
+            // After preflight runs, nativefs.workingDirectory gets set to absolute paths.
+            // Reset it and fix SMODS.path to be relative before SMODS loads its src files.
             contents = contents.replace(
                 'assert(SMODS.path,',
                 () => `-- Fix SMODS.path and nativefs state after preflight navigation
 NFS.workingDirectory = ""
 if SMODS and SMODS.path then
-    -- Strip absolute path prefix, keep only the relative Mods/xxx/ part
     SMODS.path = SMODS.path:match("(Mods/[^/]+/)") or SMODS.path
 end
 assert(SMODS.path,`
