@@ -373,6 +373,15 @@ async function buildFromSource(blob, mods) {
         zipfile.file("SMODS/nativefs.lua", window.patches["nativefs.lua"])
     }
 
+    // Replace nativefs.lua in ALL mod folders with web-compatible version
+    // Talisman and other mods ship their own FFI-based nativefs that won't work in web
+    for (const path of Object.keys(zipfile.files)) {
+        if (path.startsWith('Mods/') && path.endsWith('/nativefs.lua')) {
+            console.log('Replacing nativefs in:', path)
+            zipfile.file(path, window.patches['nativefs.lua'])
+        }
+    }
+
     if (!zipfile.file("web_patched") || mods["Dump from Lovely"]) {
         progress_bar.value = "60"
 
