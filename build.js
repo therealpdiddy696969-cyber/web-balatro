@@ -369,18 +369,27 @@ async function buildFromSource(blob, mods) {
         if (loaderFile) {
             let loaderContents = await loaderFile.async('string')
             loaderContents = loaderContents.replace(
-                'function initLoader()',
-                () => `function initLoader()
+    'function initLoader()',
+    () => `function initLoader()
     SMODS.MODS_DIR = SMODS.MODS_DIR or "Mods"
     SMODS.id = SMODS.id or "Steamodded"
-    -- sUtil stub for web build in case sharedUtil is missing
+    NFS = NFS or require("nativefs")
     if not sUtil then
         sUtil = {
             getBalatroVersion = function() return G and G.VERSION or "1.0.1o-FULL" end,
             hex = function(x) return {1,1,1,1} end,
-            V = function(x) return {is_valid=function() return true end, __le=function() return true end, __lt=function() return true end} end,
+            V = function(x)
+                local v = {version=x, is_valid=function() return true end}
+                setmetatable(v, {__le=function() return true end, __lt=function() return true end, __eq=function() return false end})
+                return v
+            end,
         }
     end`
+)
+loaderContents = loaderContents.replace(
+    'loadMods(SMODS.MODS_DIR)',
+    'local ok, err = pcall(loadMods, SMODS.MODS_DIR)\\n    if not ok then print("loadMods error (non-fatal): " .. tostring(err)) end'
+)
             )
             if (zipfile.file('SMODS/preflight/loader.lua')) {
                 zipfile.file('SMODS/preflight/loader.lua', loaderContents)
