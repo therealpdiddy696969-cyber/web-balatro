@@ -140,27 +140,18 @@ async function buildFromSource(blob, mods) {
             }
         }
 
-        // Copy lovely/SMODS/ preflight files to SMODS/ with correct flattened paths.
-        // Dump structure: lovely/SMODS/preflight/core/src/preflight/logging.lua
-        // Required path:  SMODS/preflight/logging.lua
-        // Strategy: take everything after the LAST occurrence of 'src/' in the path.
+        // Copy lovely/SMODS/ preflight files to SMODS/ with flattened paths.
+        // Takes everything after the last 'src/' in the path.
         const lovelySmods = 'lovely/SMODS/'
         const lovelySmodsPaths = Object.keys(zipfile.files).filter(p => p.startsWith(lovelySmods))
-        console.log("lovely/SMODS/ files to copy:", lovelySmodsPaths.filter(p => !p.endsWith('/')))
         for (const path of lovelySmodsPaths) {
             const file = zipfile.file(path)
             if (!file || zipfile.files[path].dir) continue
             const contents = await file.async('uint8array')
-            // Strip the lovely/SMODS/ prefix
             const relative = path.replace(lovelySmods, '')
-            // Find the last 'src/' and take everything after it
             const lastSrcIdx = relative.lastIndexOf('src/')
-            const flatPath = lastSrcIdx !== -1
-                ? relative.slice(lastSrcIdx + 4) // everything after 'src/'
-                : relative
-            const dest = 'SMODS/' + flatPath
-            console.log("Copying", path, "->", dest)
-            zipfile.file(dest, contents)
+            const flatPath = lastSrcIdx !== -1 ? relative.slice(lastSrcIdx + 4) : relative
+            zipfile.file('SMODS/' + flatPath, contents)
         }
     }
 
@@ -350,20 +341,24 @@ async function buildFromSource(blob, mods) {
     console.log(mods_without_dump)
     move_dir(mods_without_dump, "Mods/")
 
-    // Find SMODS mod folder and copy src files there so SMODS.path resolves
+    // Find SMODS mod folder and copy src files to SMODS/ so requires resolve
     const smodsFolderEntry = Object.keys(zipfile.files).find(p =>
         p.startsWith('Mods/') && p.toLowerCase().includes('smods') && p.split('/').length === 3 && p.endsWith('/')
     )
     const smodsFolderName = smodsFolderEntry ? smodsFolderEntry.split('/')[1] : null
     if (smodsFolderName) {
-        const smodsZipSrc = Object.keys(zipfile.files).filter(p => p.startsWith('SMODS/src/'))
-        for (const path of smodsZipSrc) {
+        const smodsModSrc = 'Mods/' + smodsFolderName + '/src/'
+        const smodsModSrcFiles = Object.keys(zipfile.files).filter(p => p.startsWith(smodsModSrc))
+        for (const path of smodsModSrcFiles) {
             const file = zipfile.file(path)
             if (!file || zipfile.files[path].dir) continue
             const contents = await file.async('uint8array')
-            zipfile.file('Mods/' + smodsFolderName + '/src/' + path.replace('SMODS/src/', ''), contents)
+            // Copy to both SMODS/src/ (for SMODS.path resolution) and SMODS/ (for direct requires)
+            const relPath = path.replace(smodsModSrc, '')
+            zipfile.file('SMODS/src/' + relPath, contents)
+            zipfile.file('SMODS/' + relPath, contents)
         }
-        console.log("Copied SMODS src to Mods/" + smodsFolderName + "/src/")
+        console.log("Copied SMODS src files from Mods/" + smodsFolderName + "/src/")
     }
 
     progress_bar.value = "50"
