@@ -379,10 +379,20 @@ async function buildFromSource(blob, mods) {
     // Debug: show what's in Mods/
     console.log('Mods/ folders:', Object.keys(zipfile.files).filter(p => p.startsWith('Mods/') && p.split('/').length === 3 && p.endsWith('/')))
 
+    // Add dont_patch.txt to SMODS folder so it's skipped as a regular mod
+    // SMODS is loaded via the dump preflight, not as a Mods/ entry
+    const smodsModFolder = Object.keys(zipfile.files).find(p =>
+        p.startsWith('Mods/') && p.toLowerCase().includes('smods') && p.split('/').length === 3 && p.endsWith('/')
+    )
+    if (smodsModFolder) {
+        zipfile.file(smodsModFolder + 'dont_patch.txt', 'This mod is loaded via the Lovely dump, not as a regular SMODS mod.')
+        console.log('Added dont_patch.txt to', smodsModFolder)
+    }
+
     // Fix SMODS manifest.json — the web build needs main_file set correctly
     // to prevent 'duplicate installation' crash
     const smodsManifestEntry = Object.keys(zipfile.files).find(p =>
-        p.startsWith('Mods/') && p.toLowerCase().includes('smods') && p.endsWith('/manifest.json')
+        p.startsWith('Mods/') && p.toLowerCase().includes('smods') && p.endsWith('/manifest.json') && p.split('/').length === 4
     )
     if (smodsManifestEntry) {
         const smodsFolderForManifest = smodsManifestEntry.replace('manifest.json', '')
