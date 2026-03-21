@@ -442,6 +442,10 @@ NFS.workingDirectory = ""
 if SMODS and SMODS.path then
     SMODS.path = SMODS.path:match("(Mods/[^/]+/)") or SMODS.path
 end
+-- Set MODS_DIR so loadMods() can find the mods folder
+if SMODS then
+    SMODS.MODS_DIR = SMODS.MODS_DIR or "Mods"
+end
 assert(SMODS.path,`
             )
 
