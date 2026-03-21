@@ -425,6 +425,16 @@ assert(SMODS.path,`
             zipfile.folder("resources").folder("shaders").file("hologram.fs", contents.replace(/glow_samples;/g, "4;"))
         }
 
+        {
+            // Disable fullscreen in conf.lua — browsers block automatic fullscreen
+            const confFile = zipfile.file("conf.lua")
+            if (confFile) {
+                let confContents = await confFile.async("string")
+                confContents = confContents.replace("t.window.fullscreen = true", "t.window.fullscreen = false")
+                zipfile.file("conf.lua", confContents)
+            }
+        }
+
         zipfile.file("web_patched", "true")
     }
 
