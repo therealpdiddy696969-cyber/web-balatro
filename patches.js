@@ -599,17 +599,36 @@ function lovely.set_var(name, value) end
 function lovely.get_var(name) return nil end
 function lovely.reload_patches() end
 function lovely.apply_patches(path)
-    local contents = love.filesystem.read(path)
-    if contents then return contents end
-    contents = love.filesystem.read("resources/shaders/" .. path)
-    if contents then return contents end
-    if NFS then
-        contents = NFS.read(path)
-        if contents then return contents end
-        contents = NFS.read("resources/shaders/" .. path)
-        if contents then return contents end
+    print("apply_patches: " .. tostring(path))
+    -- Try direct paths first (love.filesystem ignores workingDirectory)
+    local tries = {
+        path,
+        "resources/shaders/" .. path,
+        "resources/" .. path,
+    }
+    for _, p in ipairs(tries) do
+        local contents = love.filesystem.read(p)
+        if contents then
+            print("apply_patches: found at " .. p)
+            return contents
+        end
     end
-    -- Fallback: return a passthrough shader so the game doesn't crash on missing shaders
+    -- Try via NFS (respects workingDirectory)
+    if NFS then
+        local old_wd = NFS.getWorkingDirectory()
+        NFS.workingDirectory = ""
+        for _, p in ipairs(tries) do
+            local contents = NFS.read(p)
+            if contents then
+                NFS.workingDirectory = old_wd
+                print("apply_patches: found via NFS at " .. p)
+                return contents
+            end
+        end
+        NFS.workingDirectory = old_wd
+    end
+    print("apply_patches: not found, using passthrough shader for " .. tostring(path))
+    -- Passthrough fallback so the game doesn't crash on missing shaders
     return [[
         #ifdef VERTEX
         vec4 position(mat4 transform_projection, vec4 vertex_position) {
