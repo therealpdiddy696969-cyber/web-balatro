@@ -203,7 +203,11 @@ async function buildFromSource(blob, mods) {
             let preflightBootstrap = ''
             if (smodsPreflight) {
                 const requirePath = smodsPreflight.replace(/\.lua$/, '')
-                preflightBootstrap = '-- Bootstrap SMODS preflight (web build)\nrequire "' + requirePath + '"\n'
+                preflightBootstrap = '-- Bootstrap SMODS preflight (web build)\n' +
+                    'if not SMODS then SMODS = {} end\n' +
+                    'SMODS.MODS_DIR = SMODS.MODS_DIR or "Mods"\n' +
+                    'SMODS.id = SMODS.id or "Steamodded"\n' +
+                    'require "' + requirePath + '"\n'
             }
             contents = preflightBootstrap + 'require "web_patches"\n' + contents
             contents = contents.replace('assert(SMODS.path,',
