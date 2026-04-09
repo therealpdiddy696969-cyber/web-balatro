@@ -206,8 +206,10 @@ async function buildFromSource(blob, mods) {
         const coreLuaFile = zipfile.file(smodsPreflight)
         if (coreLuaFile) {
             let coreLua = await coreLuaFile.async('string')
-            // Wrap any bare SMODS = ... assignment to not overwrite existing SMODS
-            coreLua = coreLua.replace(/^(SMODS = (?!SMODS).+)$/m, 'SMODS = SMODS or ($1)')
+            // Prepend a guard so core.lua doesn't wipe our SMODS stub
+            coreLua = 'if not SMODS then SMODS = {} end\n' +
+                      'SMODS.MODS_DIR = SMODS.MODS_DIR or "Mods"\n' +
+                      'SMODS.id = SMODS.id or "Steamodded"\n' + coreLua
             zipfile.file(smodsPreflight, coreLua)
             console.log('Patched core.lua to preserve SMODS')
         }
