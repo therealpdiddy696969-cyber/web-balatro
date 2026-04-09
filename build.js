@@ -209,7 +209,12 @@ async function buildFromSource(blob, mods) {
             // Simple fix: override MODS_DIR after set_mods_dir() runs
             coreLua = coreLua.replace('set_mods_dir()',
                 'set_mods_dir()\nSMODS.MODS_DIR = "Mods"\nNFS.workingDirectory = ""')
+            // Fix lovely_path = false — set it to the actual SMODS mod path
+            coreLua = coreLua.replace('local lovely_path = false -- This line is patched, don\'t edit it',
+                'local lovely_path = "Mods/' + (smodsFolderName || 'smods-1.0.0-beta-1503a') + '/"')
             zipfile.file(smodsPreflight, coreLua)
+            // Also patch the flattened copy at SMODS/preflight/core.lua
+            zipfile.file('SMODS/preflight/core.lua', coreLua)
             console.log('Patched core.lua to preserve SMODS')
         }
     }
