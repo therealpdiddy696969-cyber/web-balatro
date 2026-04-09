@@ -206,10 +206,9 @@ async function buildFromSource(blob, mods) {
         const coreLuaFile = zipfile.file(smodsPreflight)
         if (coreLuaFile) {
             let coreLua = await coreLuaFile.async('string')
-            // Prepend a guard so core.lua doesn't wipe our SMODS stub
-            coreLua = 'if not SMODS then SMODS = {} end\n' +
-                      'SMODS.MODS_DIR = SMODS.MODS_DIR or "Mods"\n' +
-                      'SMODS.id = SMODS.id or "Steamodded"\n' + coreLua
+            // After set_mods_dir() runs, force MODS_DIR to web-compatible value
+            coreLua = coreLua.replace('set_mods_dir()',
+                'set_mods_dir()\nSMODS.MODS_DIR = "Mods"\nNFS.workingDirectory = ""')
             zipfile.file(smodsPreflight, coreLua)
             console.log('Patched core.lua to preserve SMODS')
         }
