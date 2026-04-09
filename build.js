@@ -196,7 +196,7 @@ async function buildFromSource(blob, mods) {
         const lf = zipfile.file(lp)
         if (!lf) continue
         let lc = await lf.async('string')
-        lc = lc.replace('loadMods(SMODS.MODS_DIR)', 'loadMods(SMODS.MODS_DIR or "Mods")')
+        lc = lc.replace('loadMods(SMODS.MODS_DIR)', 'loadMods((SMODS and SMODS.MODS_DIR) or "Mods")')
         zipfile.file(lp, lc)
         console.log('Patched loadMods in', lp)
     }
