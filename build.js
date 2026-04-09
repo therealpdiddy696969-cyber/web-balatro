@@ -207,9 +207,7 @@ async function buildFromSource(blob, mods) {
         if (coreLuaFile) {
             let coreLua = await coreLuaFile.async('string')
             // Wrap any bare SMODS = ... assignment to not overwrite existing SMODS
-            coreLua = coreLua.replace(/^(SMODS\s*=\s*(?!SMODS)[^
-]+)$/m,
-                'SMODS = SMODS or ($1)')
+            coreLua = coreLua.replace(/^(SMODS = (?!SMODS).+)$/m, 'SMODS = SMODS or ($1)')
             zipfile.file(smodsPreflight, coreLua)
             console.log('Patched core.lua to preserve SMODS')
         }
