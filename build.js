@@ -191,16 +191,27 @@ async function buildFromSource(blob, mods) {
     // Fix goto in ALL lua files after everything is in the zip
     await fixGotoInZip(zipfile)
 
-    // Patch loader.lua directly — replace loadMods(SMODS.MODS_DIR) with nil-safe version
+    // Patch loader.lua — nil-safe loadMods call
     for (const lp of ['SMODS/preflight/loader.lua', 'SMODS/src/preflight/loader.lua']) {
         const lf = zipfile.file(lp)
         if (!lf) continue
         let lc = await lf.async('string')
-        if (lc.includes('loadMods(SMODS.MODS_DIR)')) {
-            lc = lc.replace('loadMods(SMODS.MODS_DIR)',
-                'loadMods(SMODS.MODS_DIR or "Mods")')
-            zipfile.file(lp, lc)
-            console.log('Patched loadMods call in', lp)
+        lc = lc.replace('loadMods(SMODS.MODS_DIR)', 'loadMods(SMODS.MODS_DIR or "Mods")')
+        zipfile.file(lp, lc)
+        console.log('Patched loadMods in', lp)
+    }
+
+    // Patch core.lua — don't overwrite SMODS if already set
+    if (smodsPreflight) {
+        const coreLuaFile = zipfile.file(smodsPreflight)
+        if (coreLuaFile) {
+            let coreLua = await coreLuaFile.async('string')
+            // Wrap any bare SMODS = ... assignment to not overwrite existing SMODS
+            coreLua = coreLua.replace(/^(SMODS\s*=\s*(?!SMODS)[^
+]+)$/m,
+                'SMODS = SMODS or ($1)')
+            zipfile.file(smodsPreflight, coreLua)
+            console.log('Patched core.lua to preserve SMODS')
         }
     }
     progress_bar.value = "50"
