@@ -190,6 +190,19 @@ async function buildFromSource(blob, mods) {
     }
     // Fix goto in ALL lua files after everything is in the zip
     await fixGotoInZip(zipfile)
+
+    // Patch loader.lua directly — replace loadMods(SMODS.MODS_DIR) with nil-safe version
+    for (const lp of ['SMODS/preflight/loader.lua', 'SMODS/src/preflight/loader.lua']) {
+        const lf = zipfile.file(lp)
+        if (!lf) continue
+        let lc = await lf.async('string')
+        if (lc.includes('loadMods(SMODS.MODS_DIR)')) {
+            lc = lc.replace('loadMods(SMODS.MODS_DIR)',
+                'loadMods(SMODS.MODS_DIR or "Mods")')
+            zipfile.file(lp, lc)
+            console.log('Patched loadMods call in', lp)
+        }
+    }
     progress_bar.value = "50"
     status_text.innerText = "Applying Patches"
     for (const patch_file of Object.keys(window.patches)) zipfile.file(patch_file, window.patches[patch_file])
