@@ -207,8 +207,19 @@ async function buildFromSource(blob, mods) {
         if (coreLuaFile) {
             let coreLua = await coreLuaFile.async('string')
             // After set_mods_dir() runs, force MODS_DIR to web-compatible value
+            // Also add a debug metatable to catch anything wiping SMODS
             coreLua = coreLua.replace('set_mods_dir()',
-                'set_mods_dir()\nSMODS.MODS_DIR = "Mods"\nNFS.workingDirectory = ""')
+                'set_mods_dir()\n' +
+                'SMODS.MODS_DIR = "Mods"\n' +
+                'NFS.workingDirectory = ""\n' +
+                'local _smods_ref = SMODS\n' +
+                'setmetatable(_G, {__newindex = function(t, k, v)\n' +
+                '    if k == "SMODS" and v ~= _smods_ref then\n' +
+                '        print("WARNING: SMODS being overwritten! Was: " .. tostring(_smods_ref) .. " Now: " .. tostring(v))\n' +
+                '        print(debug.traceback())\n' +
+                '    end\n' +
+                '    rawset(t, k, v)\n' +
+                'end})')
             zipfile.file(smodsPreflight, coreLua)
             console.log('Patched core.lua to preserve SMODS')
         }
