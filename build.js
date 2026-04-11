@@ -196,6 +196,15 @@ async function buildFromSource(blob, mods) {
         const lf = zipfile.file(lp)
         if (!lf) continue
         let lc = await lf.async('string')
+        // Stub sUtil if it failed to load (sharedUtil.lua not available in web build)
+        const sUtilStub = 'if not sUtil then\n' +
+            '    sUtil = {\n' +
+            '        getBalatroVersion = function() return G and G.VERSION or "1.0.1o-FULL" end,\n' +
+            '        hex = function(x) return {1,1,1,1} end,\n' +
+            '        V = function(x) return {version=x, is_valid=function() return true end} end,\n' +
+            '    }\n' +
+            'end\n'
+        lc = sUtilStub + lc
         lc = lc.replace('function initLoader()', 'function initLoader() print("initLoader SMODS=" .. tostring(SMODS) .. " MODS_DIR=" .. tostring(SMODS and SMODS.MODS_DIR))')
         lc = lc.replace('loadMods(SMODS.MODS_DIR)', 'loadMods((SMODS and SMODS.MODS_DIR) or "Mods")')
         zipfile.file(lp, lc)
