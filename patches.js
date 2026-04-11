@@ -552,18 +552,16 @@ end
 -- Check if a path exists and get info
 function nativefs.getInfo(path)
     local fullpath = join_path(nativefs.workingDirectory, path)
-    -- Try as directory first
-    local children = love.filesystem.getDirectoryItems(fullpath)
-    if children then
-        return { type = "directory", size = 0, modtime = 0 }
-    end
-    -- Try as file
+    -- Use love.filesystem.getInfo without type filter to get raw info
     local ok, info = pcall(love.filesystem.getInfo, fullpath)
-    if ok and info then
-        info.type = "file"
-        return info
-    end
-    return nil
+    if not ok or not info then return nil end
+    -- Normalize numeric types to strings
+    local t = info.type
+    if t == 0 or t == "file" then info.type = "file"
+    elseif t == 1 or t == "directory" then info.type = "directory"
+    elseif t == 2 or t == "symlink" then info.type = "symlink"
+    else info.type = "other" end
+    return info
 end
 
 function nativefs.getDirectoryItemsInfo(path)
@@ -573,13 +571,13 @@ function nativefs.getDirectoryItemsInfo(path)
     local out = {}
     for i, v in ipairs(files) do
         local itempath = join_path(fullpath, v)
-        -- Determine type by trying to list as directory
-        local children = love.filesystem.getDirectoryItems(itempath)
-        local t = (children and #children >= 0) and "directory" or "file"
-        -- Verify it actually exists as a file if not a directory
-        if t == "file" then
-            local ok, info = pcall(love.filesystem.getInfo, itempath)
-            if not ok or not info then t = "directory" end -- assume directory if getInfo fails
+        local ok, info = pcall(love.filesystem.getInfo, itempath)
+        local t = "file"
+        if ok and info then
+            local raw = info.type
+            if raw == 1 or raw == "directory" then t = "directory"
+            elseif raw == 2 or raw == "symlink" then t = "symlink"
+            else t = "file" end
         end
         out[#out+1] = { name = v, type = t, size = 0, modtime = 0 }
     end
