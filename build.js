@@ -196,6 +196,7 @@ async function buildFromSource(blob, mods) {
         const lf = zipfile.file(lp)
         if (!lf) continue
         let lc = await lf.async('string')
+        lc = lc.replace('function initLoader()', 'function initLoader() print("initLoader SMODS=" .. tostring(SMODS) .. " MODS_DIR=" .. tostring(SMODS and SMODS.MODS_DIR))')
         lc = lc.replace('loadMods(SMODS.MODS_DIR)', 'loadMods((SMODS and SMODS.MODS_DIR) or "Mods")')
         zipfile.file(lp, lc)
         console.log('Patched loadMods in', lp)
@@ -210,7 +211,7 @@ async function buildFromSource(blob, mods) {
             coreLua = coreLua.replace('set_mods_dir()',
                 'set_mods_dir()\nSMODS.MODS_DIR = "Mods"\nNFS.workingDirectory = ""')
             // Fix lovely_path = false — set it to the actual SMODS mod path
-            coreLua = coreLua.replace('local lovely_path = false -- This line is patched, don\'t edit it',
+            coreLua = coreLua.replace(/local lovely_path = false[^\n]*/,
                 'local lovely_path = "Mods/' + (smodsFolderName || 'smods-1.0.0-beta-1503a') + '/"')
             console.log('core.lua lovely_path patch applied:', coreLua.includes('local lovely_path = "Mods/'))
             console.log('core.lua set_mods_dir patch applied:', coreLua.includes('SMODS.MODS_DIR = "Mods"'))
