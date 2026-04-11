@@ -202,6 +202,26 @@ async function buildFromSource(blob, mods) {
     // Fix goto in ALL lua files after everything is in the zip
     await fixGotoInZip(zipfile)
 
+    // Patch SMODS src/ui.lua — fix load_mod_config to handle nil reads
+    for (const uiPath of ['SMODS/src/ui.lua', 'SMODS/ui.lua']) {
+        const uiFile = zipfile.file(uiPath)
+        if (!uiFile) continue
+        let uiContents = await uiFile.async('string')
+        // Replace the two load() calls with nil-safe versions using string concat
+        const r1old = 'return load(NFS.read(' + "('config/%s.jkr'):format(mod.id)" + ', ' + "('=[SMODS %s " + '"config"]' + "'):format(mod.id))()"
+        const r1new = 'local _s1=NFS.read(' + "('config/%s.jkr'):format(mod.id)" + ') if not _s1 then return {} end local _f1=load(_s1,' + "('=[SMODS %s " + '"config"]' + "'):format(mod.id)) if not _f1 then return {} end return _f1()"
+        const r2old = "return load(NFS.read(mod.path..(mod.config_file or 'config.lua')), " + "('=[SMODS %s " + '"default_config"]' + "'):format(mod.id))()"
+        const r2new = "local _s2=NFS.read(mod.path..(mod.config_file or 'config.lua')) if not _s2 then return {} end local _f2=load(_s2," + "('=[SMODS %s " + '"default_config"]' + "'):format(mod.id)) if not _f2 then return {} end return _f2()"
+        if (uiContents.includes(r1old)) {
+            uiContents = uiContents.replace(r1old, r1new)
+            uiContents = uiContents.replace(r2old, r2new)
+            zipfile.file(uiPath, uiContents)
+            console.log('Patched load_mod_config in', uiPath)
+        } else {
+            console.warn('load_mod_config pattern not found in', uiPath)
+        }
+    }
+
     // Patch loader.lua — nil-safe loadMods call
     for (const lp of ['SMODS/preflight/loader.lua', 'SMODS/src/preflight/loader.lua']) {
         const lf = zipfile.file(lp)
