@@ -187,12 +187,17 @@ async function buildFromSource(blob, mods) {
             zipfile.file('SMODS/src/' + relPath, contents); zipfile.file('SMODS/' + relPath, contents)
         }
         console.log("Copied SMODS src files from Mods/" + smodsFolderName + "/src/")
-        // Remove non-src SMODS files from Mods/ to prevent duplicate detection
-        // Keep src/ so SMODS.path can find its files
+        // Remove only mod-detection files from SMODS folder to prevent duplicate detection
+        // Keep src/, config/, localization/, assets/ so SMODS can load its files
+        const keepPrefixes = ['src/', 'config/', 'localization/', 'assets/', 'libs/']
         Object.keys(zipfile.files)
-            .filter(p => p.startsWith('Mods/' + smodsFolderName + '/') && !p.startsWith('Mods/' + smodsFolderName + '/src/'))
+            .filter(p => {
+                if (!p.startsWith('Mods/' + smodsFolderName + '/')) return false
+                const rel = p.slice(('Mods/' + smodsFolderName + '/').length)
+                return !keepPrefixes.some(pfx => rel.startsWith(pfx)) && rel !== ''
+            })
             .forEach(k => delete zipfile.files[k])
-        console.log('Removed non-src files from Mods/' + smodsFolderName + '/')
+        console.log('Removed mod-detection files from Mods/' + smodsFolderName + '/')
     }
     // Fix goto in ALL lua files after everything is in the zip
     await fixGotoInZip(zipfile)
